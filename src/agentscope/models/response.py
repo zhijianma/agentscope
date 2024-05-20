@@ -20,6 +20,7 @@ class ModelResponse:
     raw: Optional[Any] = None
     image_urls: Optional[Sequence[str]] = None
     parsed: Optional[Any] = None
+    streaming: Optional[bool] = False
 
     def __init__(
         self,
@@ -28,6 +29,7 @@ class ModelResponse:
         image_urls: Sequence[str] = None,
         raw: Any = None,
         parsed: Any = None,
+        streaming: bool = False,
     ) -> None:
         """Initialize the model response.
 
@@ -42,12 +44,15 @@ class ModelResponse:
                 The raw data returned by the model.
             parsed (`Any`, optional):
                 The parsed data returned by the model.
+            streaming (`bool`, optional):
+                text field returned by the model is streaming or not.
         """
         self.text = text
         self.embedding = embedding
         self.image_urls = image_urls
         self.raw = raw
         self.parsed = parsed
+        self.streaming = streaming
 
     def __getattribute__(self, item: str) -> Any:
         """Warning for the deprecated json attribute."""
@@ -81,5 +86,6 @@ class ModelResponse:
             "image_urls": self.image_urls,
             "parsed": self.parsed,
             "raw": raw,
+            "streaming": self.streaming
         }
         return json.dumps(serialized_fields, indent=4, ensure_ascii=False)
