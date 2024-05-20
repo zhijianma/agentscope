@@ -333,6 +333,7 @@ class MsgHubNode(WorkflowNode):
         dep_opts: list,
     ) -> None:
         super().__init__(node_id, opt_kwargs, source_kwargs, dep_opts)
+        self.var_name = f"hub_{self.node_id}"
         self.announcement = Msg(
             name=self.opt_kwargs["announcement"].get("name", "Host"),
             content=self.opt_kwargs["announcement"].get("content", "Welcome!"),
@@ -364,7 +365,7 @@ class MsgHubNode(WorkflowNode):
             f', role="system")'
         )
         execs = f"""with msghub({deps_converter(self.participants_var)},
-        announcement={announcement}):
+        announcement={announcement}) as {self.var_name}:
         {DEFAULT_FLOW_VAR} = {self.dep_vars[0]}({DEFAULT_FLOW_VAR})
         """
         return {
@@ -374,6 +375,36 @@ class MsgHubNode(WorkflowNode):
             "execs": execs,
         }
 
+class CodeBlockNode(WorkflowNode):
+    """
+    A code block node within a workflow.
+
+    This node executes input code directly.
+    """
+
+    node_type = WorkflowNodeType.PIPELINE
+
+    def __init__(
+        self,
+        node_id: str,
+        opt_kwargs: dict,
+        source_kwargs: dict,
+        dep_opts: list,
+    ) -> None:
+        super().__init__(node_id, opt_kwargs, source_kwargs, dep_opts)
+        self.pipeline = placeholder
+
+    def __call__(self, x: dict = None) -> dict:
+        # Logic code is not supported
+        return x
+
+    def compile(self) -> dict:
+        execs = self.opt_kwargs.get('code', 'pass')
+        return {
+            "imports": "",
+            "inits": "",
+            "execs": execs,
+        }
 
 class PlaceHolderNode(WorkflowNode):
     """
@@ -846,6 +877,7 @@ NODE_NAME_MAPPING = {
     "PythonService": PythonServiceNode,
     "ReadTextService": ReadTextServiceNode,
     "WriteTextService": WriteTextServiceNode,
+    "CodeBlock": CodeBlockNode,
 }
 
 
