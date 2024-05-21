@@ -68,6 +68,7 @@ class ASDiGraph(nx.DiGraph):
         ]
 
         self.execs = ["\n"]
+        self.definitions=["\n"]
 
     def run(self) -> None:
         """
@@ -125,7 +126,10 @@ class ASDiGraph(nx.DiGraph):
 
         for node_id in sorted_nodes:
             node = self.nodes[node_id]
-            self.execs.append(node["compile_dict"]["execs"])
+            execs = node["compile_dict"]["execs"]
+            if not isinstance(execs, list):
+                execs = [execs]
+            self.execs.extend(execs)
 
         header = "\n".join(self.imports)
 
@@ -133,12 +137,12 @@ class ASDiGraph(nx.DiGraph):
         new_imports = remove_duplicates_from_end(header.split("\n"))
         header = "\n".join(new_imports)
         body = "\n    ".join(self.inits + self.execs)
-
+        definitions = "\n".join(self.definitions)
         main_body = f"def main():\n    {body}"
 
         # Combine header and body to form the full script
         script = (
-            f"{header}\n\n\n{main_body}\n\nif __name__ == "
+            f"{header}\n\n\n{definitions}\n\n\n{main_body}\n\nif __name__ == "
             f"'__main__':\n    main()\n"
         )
 
@@ -222,6 +226,10 @@ class ASDiGraph(nx.DiGraph):
             self.inits.insert(1, compile_dict["inits"])
         else:
             self.inits.append(compile_dict["inits"])
+
+        definition = compile_dict.get("definition", "")
+        if definition:
+            self.definitions.append(definition)
         return node_opt
 
     def exec_node(self, node_id: str, x_in: Any = None) -> Any:

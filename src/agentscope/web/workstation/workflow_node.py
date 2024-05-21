@@ -35,6 +35,7 @@ from agentscope.service import (
     execute_python_code,
     ServiceFactory,
 )
+from black import FileMode, format_str
 
 DEFAULT_FLOW_VAR = "flow"
 
@@ -72,10 +73,26 @@ class WorkflowNode(ABC):
         Initialize nodes. Implement specific initialization logic in
         subclasses.
         """
+        def _split_deps(dep_opts):
+            pre_code = ''
+            post_code = ''
+            deps = dep_opts
+            if len(dep_opts) == 1:
+                if isinstance(deps[0], CodeBlockNode):
+                    pre_code = deps[0].compile()['execs']
+                    deps = []
+            elif len(dep_opts) >=2:
+                if isinstance(deps[0], CodeBlockNode):
+                    pre_code = deps[0].compile()['execs']
+                    deps = deps[1:]
+                if isinstance(dep_opts[-1], CodeBlockNode):
+                    post_code = deps[-1].compile()['execs']
+                    deps = deps[:-1]
+            return deps, pre_code, post_code
         self.node_id = node_id
         self.opt_kwargs = opt_kwargs
         self.source_kwargs = source_kwargs
-        self.dep_opts = dep_opts
+        self.dep_opts, self.pre_code, self.post_code = _split_deps(dep_opts)
         self.dep_vars = [opt.var_name for opt in self.dep_opts]
         self.var_name = f"{self.node_type.name.lower()}_{self.node_id}"
 
@@ -399,7 +416,10 @@ class CodeBlockNode(WorkflowNode):
         return x
 
     def compile(self) -> dict:
-        execs = self.opt_kwargs.get('code', 'pass')
+        code = self.opt_kwargs.get('code', '')
+        lines = code.strip().split('\n')
+        indented_lines = [lines[0]] + [('        ' + line) for line in lines[1:]]
+        execs = '\n'.join(indented_lines)
         return {
             "imports": "",
             "inits": "",
@@ -463,12 +483,25 @@ class SequentialPipelineNode(WorkflowNode):
         return self.pipeline(x)
 
     def compile(self) -> dict:
+        class_name = "SequentialPipeline"
+        definition = ""
+        if self.pre_code or self.post_code:
+            class_name = f"SequentialPipeline_{self.node_id}"
+            definition =f"""
+class SequentialPipeline_{self.node_id}(SequentialPipeline):
+    def __call__(self, x):
+        {self.pre_code}
+        {DEFAULT_FLOW_VAR} = super().__call__(x)
+        {self.post_code}
+        return {DEFAULT_FLOW_VAR}
+"""
+        execs = f"{DEFAULT_FLOW_VAR} = {self.var_name}({DEFAULT_FLOW_VAR})"
         return {
-            "imports": "from agentscope.pipelines import SequentialPipeline",
-            "inits": f"{self.var_name} = SequentialPipeline("
+            "imports": "from agentscope.pipelines import SequentialPipeline\n",
+            "definition": definition,
+            "inits": f"{self.var_name} = {class_name}("
             f"{deps_converter(self.dep_vars)})",
-            "execs": f"{DEFAULT_FLOW_VAR} = {self.var_name}"
-            f"({DEFAULT_FLOW_VAR})",
+            "execs": execs,
         }
 
 
@@ -914,6 +947,8 @@ def get_all_agents(
                     all_agents.append(participant.pipeline)
                 seen_agents.add(participant.pipeline)
         elif participant.node_type == WorkflowNodeType.PIPELINE:
+            if isinstance(participant, CodeBlockNode):
+                continue
             nested_agents = get_all_agents(
                 participant,
                 seen_agents,
