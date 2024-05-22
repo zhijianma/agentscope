@@ -74,27 +74,38 @@ class WorkflowNode(ABC):
         subclasses.
         """
         def _split_deps(dep_opts):
-            pre_code = ''
-            post_code = ''
+            pre_code_lines = []
+            post_code_lines = []
             deps = dep_opts
-            if len(dep_opts) == 1:
+            if len(dep_opts) >= 1:
                 if isinstance(deps[0], CodeBlockNode):
-                    pre_code = deps[0].compile()['execs']
-                    deps = []
-            elif len(dep_opts) >=2:
-                if isinstance(deps[0], CodeBlockNode):
-                    pre_code = deps[0].compile()['execs']
-                    deps = deps[1:]
+                    pre_code_lines = deps[0].compile()['execs']
+                    deps = dep_opts[1:]
+            if len(dep_opts) >=2:
                 if isinstance(dep_opts[-1], CodeBlockNode):
-                    post_code = deps[-1].compile()['execs']
+                    post_code_lines = deps[-1].compile()['execs']
                     deps = deps[:-1]
-            return deps, pre_code, post_code
+            return deps, pre_code_lines, post_code_lines
         self.node_id = node_id
         self.opt_kwargs = opt_kwargs
         self.source_kwargs = source_kwargs
-        self.dep_opts, self.pre_code, self.post_code = _split_deps(dep_opts)
+        self.dep_opts, self.pre_code_lines, self.post_code_lines = _split_deps(dep_opts)
         self.dep_vars = [opt.var_name for opt in self.dep_opts]
         self.var_name = f"{self.node_type.name.lower()}_{self.node_id}"
+
+    def pre_code(self, indent=8):
+        """
+        Prepare and return pre-code lines with specified indentation
+        """
+        indentation = '\n' + ' ' * indent
+        return indentation.join(self.pre_code_lines)
+    
+    def post_code(self, indent=8):
+        """
+        Prepare and return post-code lines with specified indentation
+        """
+        indentation = '\n' + ' ' * indent
+        return indentation.join(self.post_code_lines)
 
     def __call__(self, x: dict = None):  # type: ignore[no-untyped-def]
         """
@@ -417,9 +428,7 @@ class CodeBlockNode(WorkflowNode):
 
     def compile(self) -> dict:
         code = self.opt_kwargs.get('code', '')
-        lines = code.strip().split('\n')
-        indented_lines = [lines[0]] + [('        ' + line) for line in lines[1:]]
-        execs = '\n'.join(indented_lines)
+        execs = code.strip().split('\n')
         return {
             "imports": "",
             "inits": "",
@@ -490,9 +499,9 @@ class SequentialPipelineNode(WorkflowNode):
             definition =f"""
 class SequentialPipeline_{self.node_id}(SequentialPipeline):
     def __call__(self, x):
-        {self.pre_code}
+        {self.pre_code()}
         {DEFAULT_FLOW_VAR} = super().__call__(x)
-        {self.post_code}
+        {self.post_code()}
         return {DEFAULT_FLOW_VAR}
 """
         execs = f"{DEFAULT_FLOW_VAR} = {self.var_name}({DEFAULT_FLOW_VAR})"
