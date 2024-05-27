@@ -144,9 +144,9 @@ class OpenAIChatWrapper(OpenAIWrapperBase):
         )
 
     def _handle_stream_response(self, response, messages=None, **kwargs):
-        return (self._handle_single_response(chunk, messages=messages, **kwargs) for chunk in response)
+        return (self._handle_single_response(chunk, stream=True, messages=messages, **kwargs) for chunk in response)
 
-    def _handle_single_response(self, response, messages=None, **kwargs):
+    def _handle_single_response(self, response, stream=False, messages=None, **kwargs):
         # step4: record the api invocation if needed
         self._save_model_invocation(
             arguments={
@@ -162,7 +162,7 @@ class OpenAIChatWrapper(OpenAIWrapperBase):
 
         # step6: return response
         return ModelResponse(
-            text=response.choices[0].message.content,
+            text=response.choices[0].message.content if stream else response.choices[0].delta.content,
             raw=response.model_dump(),
         )
     def stream_call(
@@ -309,7 +309,7 @@ class OpenAIChatWrapper(OpenAIWrapperBase):
             stream_output = self._handle_stream_response(response, messages=messages, **kwargs)
             return self.generator2response(stream_output)
         else:
-            return self._handle_single_response(response, messages=messages, **kwargs)
+            return self._handle_single_response(response, stream=stream, messages=messages, **kwargs)
         
 
     def _format_msg_with_url(
