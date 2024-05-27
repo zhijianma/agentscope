@@ -191,8 +191,8 @@ class OpenAIChatWrapper(OpenAIWrapperBase):
                 for more detailed arguments.
 
         Returns:
-            `ModelResponse`:
-                The response text in text field, and the raw response in
+            `Generator[ModelResponse]`:
+                A generator of ModelResponse which contains the response text in text field, and the raw response in
                 raw field.
 
         Note:
@@ -233,7 +233,7 @@ class OpenAIChatWrapper(OpenAIWrapperBase):
             **kwargs,
         )
         
-        # finally: return model response
+        # finally: return generator of model response
         return self._handle_stream_response(response, messages=messages, **kwargs)
 
     def __call__(

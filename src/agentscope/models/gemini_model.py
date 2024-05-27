@@ -3,7 +3,7 @@
 import os
 from abc import ABC
 from collections.abc import Iterable
-from typing import Sequence, Union, Any, List
+from typing import Sequence, Union, Any, List, Generator
 
 from loguru import logger
 
@@ -160,10 +160,50 @@ class GeminiChatWrapper(GeminiWrapperBase):
             raw=response,
         )
     
+    def stream_call(
+        self,
+        contents: Union[Sequence, str],
+        **kwargs: Any,
+    ) -> Generator[ModelResponse]:
+        """Generate response for the given contents with stream.
+
+        Args:
+            contents (`Union[Sequence, str]`):
+                The content to generate response.
+            stream (`bool`, defaults to `False`):
+                Whether to use stream mode.
+            **kwargs:
+                The additional arguments for generating response.
+
+        Returns:
+            `Generator[ModelResponse]`:
+                A generator of ModelResponse which contains the response text in text field, and the raw response in
+                raw field.
+        """
+        kwargs = {**self.generate_args, **kwargs}
+
+        # step1: checking messages
+        if isinstance(contents, Iterable):
+            pass
+        elif not isinstance(contents, str):
+            logger.warning(
+                "The input content is not a string or a list of "
+                "messages, which may cause unexpected behavior.",
+            )
+
+        stream = True
+        kwargs["stream"] = stream
+        # step2: forward to generate response
+        response = self.model.generate_content(
+            contents,
+            **kwargs,
+        )
+
+        # finally: return generator of model response
+        return self._handle_stream_response(response, contents=contents, **kwargs)
     def __call__(
         self,
         contents: Union[Sequence, str],
-        stream: bool = False,
         **kwargs: Any,
     ) -> ModelResponse:
         """Generate response for the given contents.
@@ -171,8 +211,6 @@ class GeminiChatWrapper(GeminiWrapperBase):
         Args:
             contents (`Union[Sequence, str]`):
                 The content to generate response.
-            stream (`bool`, defaults to `False`):
-                Whether to use stream mode.
             **kwargs:
                 The additional arguments for generating response.
 

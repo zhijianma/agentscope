@@ -163,7 +163,7 @@ class DashScopeChatWrapper(DashScopeWrapperBase):
         self,
         messages: list,
         **kwargs: Any,
-    ) -> ModelResponse:
+    ) -> Generator[ModelResponse]:
         """Processes a list of messages to construct a payload for the
         DashScope API call with stream. It then makes a request to the DashScope API
         and returns the generator response. This method also updates monitoring
