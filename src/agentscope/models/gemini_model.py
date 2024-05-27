@@ -29,6 +29,7 @@ class GeminiWrapperBase(ModelWrapperBase, ABC):
         config_name: str,
         model_name: str,
         api_key: str = None,
+        generate_args: dict = None,
         **kwargs: Any,
     ) -> None:
         """Initialize the wrapper for Google Gemini model.
@@ -54,6 +55,7 @@ class GeminiWrapperBase(ModelWrapperBase, ABC):
         genai.configure(api_key=api_key, **kwargs)
 
         self.model_name = model_name
+        self.generate_args = generate_args or {}
 
         self._register_default_metrics()
 
@@ -69,7 +71,6 @@ class GeminiWrapperBase(ModelWrapperBase, ABC):
 
         if self.generation_method is None:
             return support_models
-        else:
             return [
                 _
                 for _ in support_models
@@ -99,61 +100,42 @@ class GeminiChatWrapper(GeminiWrapperBase):
         config_name: str,
         model_name: str,
         api_key: str = None,
+        generate_args: dict = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(
             config_name=config_name,
             model_name=model_name,
             api_key=api_key,
+            generate_args=generate_args,
             **kwargs,
         )
 
         # Create the generative model
         self.model = genai.GenerativeModel(model_name, **kwargs)
 
-    def __call__(
-        self,
-        contents: Union[Sequence, str],
-        stream: bool = False,
-        **kwargs: Any,
-    ) -> ModelResponse:
-        """Generate response for the given contents.
+    def generator2response(self, stream_output):
+        text = ''
+        raw_responses = []
+        
+        for rsp in stream_output:
+            text += rsp.text
+            raw_responses.append(rsp.raw)
 
-        Args:
-            contents (`Union[Sequence, str]`):
-                The content to generate response.
-            stream (`bool`, defaults to `False`):
-                Whether to use stream mode.
-            **kwargs:
-                The additional arguments for generating response.
-
-        Returns:
-            `ModelResponse`:
-                The response text in text field, and the raw response in raw
-                field.
-        """
-        # step1: checking messages
-        if isinstance(contents, Iterable):
-            pass
-        elif not isinstance(contents, str):
-            logger.warning(
-                "The input content is not a string or a list of "
-                "messages, which may cause unexpected behavior.",
-            )
-
-        # step2: forward to generate response
-        # TODO: support response in stream mode
-        response = self.model.generate_content(
-            contents,
-            stream=stream,
-            **kwargs,
+        return ModelResponse(
+            text = text,
+            raw=raw_responses
         )
+    
+    def _handle_stream_response(self, response, messages=None, **kwargs):
+        return (self._handle_single_response(chunk, stream=True, messages=messages, **kwargs) for chunk in response)
+
+    def _handle_single_response(self, response, stream=False, contents=None, **kwargs):
 
         # step3: record the api invocation if needed
         self._save_model_invocation(
             arguments={
                 "contents": contents,
-                "stream": stream,
                 **kwargs,
             },
             response=str(response),
@@ -177,6 +159,54 @@ class GeminiChatWrapper(GeminiWrapperBase):
             text=response.text,
             raw=response,
         )
+    
+    def __call__(
+        self,
+        contents: Union[Sequence, str],
+        stream: bool = False,
+        **kwargs: Any,
+    ) -> ModelResponse:
+        """Generate response for the given contents.
+
+        Args:
+            contents (`Union[Sequence, str]`):
+                The content to generate response.
+            stream (`bool`, defaults to `False`):
+                Whether to use stream mode.
+            **kwargs:
+                The additional arguments for generating response.
+
+        Returns:
+            `ModelResponse`:
+                The response text in text field, and the raw response in raw
+                field.
+        """
+        kwargs = {**self.generate_args, **kwargs}
+
+        # step1: checking messages
+        if isinstance(contents, Iterable):
+            pass
+        elif not isinstance(contents, str):
+            logger.warning(
+                "The input content is not a string or a list of "
+                "messages, which may cause unexpected behavior.",
+            )
+
+        stream = kwargs.get("stream", False)
+        kwargs["stream"] = stream
+        # step2: forward to generate response
+        response = self.model.generate_content(
+            contents,
+            **kwargs,
+        )
+
+        # finally: return model response
+        if stream:
+            stream_output = self._handle_stream_response(response, contents=contents, **kwargs)
+            return self.generator2response(stream_output)
+        else:
+            return self._handle_single_response(response, stream=stream, contents=contents, **kwargs)
+        
 
     def _register_default_metrics(self) -> None:
         """Register the default metrics for the model."""
