@@ -104,6 +104,18 @@ class DashScopeChatWrapper(DashScopeWrapperBase):
             metric_unit="token",
         )
 
+    def generator2response(self, stream_output:Generator[ModelResponse]):
+        text = ''
+        raw_responses = []
+        for rsp in stream_output:
+            text += rsp.text
+            raw_responses.append(rsp.raw)
+
+        return ModelResponse(
+            text = text,
+            raw=raw_responses
+        )
+    
     def _handle_stream_response(self, response, messages=None, **kwargs):
         return (self._handle_single_response(chunk, messages=messages, **kwargs) for chunk in response)
 
@@ -304,17 +316,8 @@ class DashScopeChatWrapper(DashScopeWrapperBase):
 
         # finally: return model response
         if stream:
-            text = ''
-            raw_responses = []
             stream_output = self._handle_stream_response(response, messages=messages, **kwargs)
-            for rsp in stream_output:
-                text += rsp.text
-                raw_responses.append(rsp.raw)
-
-            return ModelResponse(
-                text = text,
-                raw=raw_responses
-            )
+            return self.generator2response(stream_output)
         else:
             return self._handle_single_response(response, messages=messages, **kwargs)
 
