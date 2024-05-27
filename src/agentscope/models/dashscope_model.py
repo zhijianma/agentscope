@@ -3,7 +3,7 @@
 import os
 from abc import ABC
 from http import HTTPStatus
-from typing import Any, Union, List, Sequence
+from typing import Any, Union, List, Sequence, Generator
 from loguru import logger
 
 from ..message import MessageBase
@@ -58,7 +58,7 @@ class DashScopeWrapperBase(ModelWrapperBase, ABC):
         self.generate_args = generate_args or {}
 
         self.api_key = api_key
-        dashscope.api_key = self.api_key
+        dashscope.api_key = self.api_key or dashscope.api_key
         self.max_length = None
 
         # Set monitor accordingly
@@ -167,49 +167,68 @@ class DashScopeChatWrapper(DashScopeWrapperBase):
                 "and 'content' key for DashScope API.",
             )
 
+        result_format = kwargs.get("result_format", "message")
+        stream = kwargs.get("stream", False)
+        incremental_output = True if stream else False
+
+        kwargs["result_format"] = result_format
+        kwargs["incremental_output"] = incremental_output
+
         # step3: forward to generate response
         response = dashscope.Generation.call(
             model=self.model_name,
             messages=messages,
-            result_format="message",  # set the result to be "message" format.
             **kwargs,
         )
+        
+        def _handle_response(response):
+            if response.status_code != HTTPStatus.OK:
+                error_msg = (
+                    f" Request id: {response.request_id},"
+                    f" Status code: {response.status_code},"
+                    f" error code: {response.code},"
+                    f" error message: {response.message}."
+                )
 
-        if response.status_code != HTTPStatus.OK:
-            error_msg = (
-                f" Request id: {response.request_id},"
-                f" Status code: {response.status_code},"
-                f" error code: {response.code},"
-                f" error message: {response.message}."
+                raise RuntimeError(error_msg)
+
+            # step4: record the api invocation if needed
+            self._save_model_invocation(
+                arguments={
+                    "model": self.model_name,
+                    "messages": messages,
+                    **kwargs,
+                },
+                response=response,
             )
 
-            raise RuntimeError(error_msg)
+            # step5: update monitor accordingly
+            # The metric names are unified for comparison
+            self.update_monitor(
+                call_counter=1,
+                prompt_tokens=response.usage.get("input_tokens", 0),
+                completion_tokens=response.usage.get("output_tokens", 0),
+                total_tokens=response.usage.get("input_tokens", 0)
+                + response.usage.get("output_tokens", 0),
+            )
 
-        # step4: record the api invocation if needed
-        self._save_model_invocation(
-            arguments={
-                "model": self.model_name,
-                "messages": messages,
-                **kwargs,
-            },
-            response=response,
-        )
-
-        # step5: update monitor accordingly
-        # The metric names are unified for comparison
-        self.update_monitor(
-            call_counter=1,
-            prompt_tokens=response.usage.get("input_tokens", 0),
-            completion_tokens=response.usage.get("output_tokens", 0),
-            total_tokens=response.usage.get("input_tokens", 0)
-            + response.usage.get("output_tokens", 0),
-        )
-
-        # step6: return response
-        return ModelResponse(
-            text=response.output["choices"][0]["message"]["content"],
-            raw=response,
-        )
+            # step6: return response
+            msg =  ModelResponse(
+                text=response.output["choices"][0]["message"]["content"] if result_format=='message' else response.output.text,
+                raw=response,
+            )
+            
+            return msg
+        
+        def _stream_output(response):
+            for chunk in response:
+                yield _handle_response(chunk)
+        
+        # finally: return model response or generator 
+        if stream:
+            return _stream_output(response)
+        else:
+            return _handle_response(response)
 
     def format(
         self,
@@ -340,7 +359,7 @@ class DashScopeImageSynthesisWrapper(DashScopeWrapperBase):
         prompt: str,
         save_local: bool = False,
         **kwargs: Any,
-    ) -> ModelResponse:
+    ) -> Union[ModelResponse, Generator[ModelResponse]]:
         """
          Args:
              prompt (`str`):
@@ -358,6 +377,9 @@ class DashScopeImageSynthesisWrapper(DashScopeWrapperBase):
              `ModelResponse`:
                  A list of image urls in image_urls field and the
                  raw response in raw field.
+               `Union[ModelResponse,
+                    Generator[ModelResponse]]`: If
+                stream is True, return Generator, otherwise ModelResponse.
 
          Note:
              `parse_func`, `fault_handler` and `max_retries` are reserved
