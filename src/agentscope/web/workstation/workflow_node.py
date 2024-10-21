@@ -92,8 +92,6 @@ class WorkflowNode(ABC):
         self.opt_kwargs = opt_kwargs
         self.source_kwargs = source_kwargs
         self.dep_opts = dep_opts
-        self.dep_vars = [opt.var_name for opt in self.dep_opts]
-        self.var_name = f"{self.node_type.name.lower()}_{self.node_id}"
         self.source_kwargs.pop("condition_op", "")
         self.source_kwargs.pop("target_value", "")
         self._post_init()
@@ -269,7 +267,6 @@ class MsgHubNode(WorkflowNode):
 
         self.pipeline = self.dep_opts[0]
         self.participants = get_all_agents(self.pipeline)
-        self.participants_var = get_all_agents(self.pipeline, return_var=True)
 
     def __call__(self, x: dict = None) -> dict:
         with msghub(self.participants, announcement=self.announcement):
@@ -424,31 +421,25 @@ class SwitchPipelineNode(WorkflowNode):
             "SwitchPipelineNode must contain at least " "one PipelineNode."
         )
         case_operators = {}
-        self.case_operators_var = {}
 
         if len(self.dep_opts) == len(self.opt_kwargs["cases"]):
             # No default_operators provided
             default_operators = placeholder
-            self.default_var_name = "placeholder"
         elif len(self.dep_opts) == len(self.opt_kwargs["cases"]) + 1:
             # default_operators provided
             default_operators = self.dep_opts.pop(-1)
-            self.default_var_name = self.dep_vars.pop(-1)
         else:
             raise ValueError(
                 f"SwitchPipelineNode deps {self.dep_opts} not matches "
                 f"cases {self.opt_kwargs['cases']}.",
             )
 
-        for key, value, var in zip(
+        for key, value in zip(
             self.opt_kwargs["cases"],
             self.dep_opts,
-            self.dep_vars,
         ):
             case_operators[key] = value.pipeline
-            self.case_operators_var[key] = var
         self.opt_kwargs.pop("cases")
-        self.source_kwargs.pop("cases")
         self.pipeline = SwitchPipeline(
             case_operators=case_operators,
             default_operators=default_operators,  # type: ignore[arg-type]
@@ -474,7 +465,6 @@ class CopyNode(WorkflowNode):
         super()._post_init()
         assert len(self.dep_opts) == 1, "CopyNode can only have one parent!"
         self.pipeline = self.dep_opts[0]
-        self.var_name = self.pipeline.var_name
 
     def __call__(self, x: dict = None) -> dict:
         return self.pipeline(x)
@@ -767,7 +757,6 @@ NODE_NAME_MAPPING = {
 def get_all_agents(
     node: WorkflowNode,
     seen_agents: Optional[set] = None,
-    return_var: bool = False,
 ) -> List:
     """
     Retrieve all unique agent objects from a pipeline.
@@ -794,16 +783,12 @@ def get_all_agents(
 
         if participant.node_type == WorkflowNodeType.AGENT:
             if participant.pipeline not in seen_agents:
-                if return_var:
-                    all_agents.append(participant.var_name)
-                else:
-                    all_agents.append(participant.pipeline)
+                all_agents.append(participant.pipeline)
                 seen_agents.add(participant.pipeline)
         elif participant.node_type == WorkflowNodeType.PIPELINE:
             nested_agents = get_all_agents(
                 participant,
                 seen_agents,
-                return_var=return_var,
             )
             all_agents.extend(nested_agents)
         else:
