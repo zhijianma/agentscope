@@ -854,7 +854,7 @@ async function addNodeToDrawFlow(name, pos_x, pos_y) {
             const CodeID = editor.addNode('Code', 1, 1,
                 pos_x, pos_y, 'Code', {
                     "args": {
-                        "code": "\ndef main(arg1, arg2):\n    return {\n        \"content\": arg1 + arg2\n    }\n"
+                        "code": "def function(msg1: \"Msg\") -> \"Msg\":\n    content1 = msg1.get(\"content\", \"\")\n    return {\n        \"role\": \"assistant\",\n        \"content\": content1,\n        \"name\": \"function\",\n    }"
                     }
                 }, htmlSourceCode);
             break;
@@ -954,15 +954,7 @@ function initializeMonacoEditor(nodeId) {
         editorInstance.onDidChangeModelContent(function () {
             const updatedNode = editor.getNodeFromId(nodeId);
             if (updatedNode) {
-                updatedNode.data.args.code = editorInstance.getValue();
-                editor.updateNodeDataFromId(nodeId, updatedNode.data);
-            }
-        });
-
-        editorInstance.onDidChangeModelContent(function () {
-            const updatedNode = editor.getNodeFromId(nodeId);
-            if (updatedNode) {
-                updatedNode.data.args.code = editorInstance.getValue();
+                updatedNode.data.args.code = editorInstance.getValue().trim();
                 editor.updateNodeDataFromId(nodeId, updatedNode.data);
             }
         });
@@ -1602,7 +1594,7 @@ function sortElementsByPosition(inputData) {
 }
 
 
-function checkConditions() {
+function checkConditions(check_all=true) {
     let hasModelTypeError = false;
     let hasAgentError = false;
     let agentModelConfigNames = new Set();
@@ -1614,6 +1606,25 @@ function checkConditions() {
         let node = nodesData[nodeId];
         console.log("node", node);
         console.log("node.inputs", node.inputs);
+
+        if (node.name === 'Code') {
+            const code = node.data.args.code;
+            const pattern = /\bdef\s+function\s*\(/;
+
+            if (!pattern.test(code)) {
+                Swal.fire({
+                    title: 'Invalid Code Function Name',
+                    text: `${node.name} only support "function" as the function name.`,
+                    icon: 'error',
+                    confirmButtonText: 'Ok'
+                });
+                return false;
+            }
+        }
+
+        if (!check_all){
+            continue;
+        }
 
         let nodeElement = document.getElementById('node-' + nodeId);
         const requiredInputs = nodeElement.querySelectorAll('input[data-required="true"]');
@@ -1954,47 +1965,50 @@ function showExportRunMSPopup() {
 
 
 function showExportHTMLPopup() {
-    const rawData = editor.export();
+    if (checkConditions(false)) {
 
-    // Remove the html attribute from the nodes to avoid inconsistencies in html
-    removeHtmlFromUsers(rawData);
-    const hasError = sortElementsByPosition(rawData);
-    if (hasError) {
-        return;
-    }
+        const rawData = editor.export();
 
-    const exportData = JSON.stringify(rawData, null, 4);
-
-    const escapedExportData = exportData
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-
-    Swal.fire({
-        title: '<b>Workflow HTML</b>',
-        html:
-            '<p>This is used for generating HTML code, not for running.<br>' +
-            '<pre class="line-numbers"><code class="language-javascript" id="export-data">'
-            + escapedExportData +
-            '</code></pre>',
-        showCloseButton: true,
-        showCancelButton: true,
-        confirmButtonText: 'Copy',
-        cancelButtonText: 'Close',
-        willOpen: (element) => {
-            // Find the code element inside the Swal content
-            const codeElement = element.querySelector('code');
-
-            // Now highlight the code element with Prism
-            Prism.highlightElement(codeElement);
-
-            // Copy to clipboard logic
-            const content = codeElement.textContent;
-            const copyButton = Swal.getConfirmButton();
-            copyButton.addEventListener('click', () => {
-                copyToClipboard(content);
-            });
+        // Remove the html attribute from the nodes to avoid inconsistencies in html
+        removeHtmlFromUsers(rawData);
+        const hasError = sortElementsByPosition(rawData);
+        if (hasError) {
+            return;
         }
-    });
+
+        const exportData = JSON.stringify(rawData, null, 4);
+
+        const escapedExportData = exportData
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        Swal.fire({
+            title: '<b>Workflow HTML</b>',
+            html:
+                '<p>This is used for generating HTML code, not for running.<br>' +
+                '<pre class="line-numbers"><code class="language-javascript" id="export-data">'
+                + escapedExportData +
+                '</code></pre>',
+            showCloseButton: true,
+            showCancelButton: true,
+            confirmButtonText: 'Copy',
+            cancelButtonText: 'Close',
+            willOpen: (element) => {
+                // Find the code element inside the Swal content
+                const codeElement = element.querySelector('code');
+
+                // Now highlight the code element with Prism
+                Prism.highlightElement(codeElement);
+
+                // Copy to clipboard logic
+                const content = codeElement.textContent;
+                const copyButton = Swal.getConfirmButton();
+                copyButton.addEventListener('click', () => {
+                    copyToClipboard(content);
+                });
+            }
+        });
+    }
 }
 
 
