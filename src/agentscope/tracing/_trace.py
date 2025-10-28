@@ -110,11 +110,7 @@ def _trace_sync_generator_wrapper(
     finally:
         if not has_error:
             # Set the last chunk as output
-            span.set_attributes(
-                {
-                    SpanAttributes.AGENTSCOPE_OUTPUT: _serialize_to_str(last_chunk),
-                },
-            )
+            span.set_attributes(get_generic_function_response_attributes(last_chunk))
             span.set_status(opentelemetry.trace.StatusCode.OK)
         span.end()
 
@@ -157,16 +153,13 @@ async def _trace_async_generator_wrapper(
 
             if getattr(span, "attributes", {}).get(GenAIAttributes.GEN_AI_OPERATION_NAME) is GenAIAttributes.GenAiOperationNameValues.CHAT.value:
                 response_attributes = get_llm_response_attributes(last_chunk)
-                span.set_attributes(response_attributes)
+                
             elif getattr(span, "attributes", {}).get(GenAIAttributes.GEN_AI_OPERATION_NAME) is GenAIAttributes.GenAiOperationNameValues.EXECUTE_TOOL.value:
                 response_attributes = get_tool_response_attributes(last_chunk)
-                span.set_attributes(response_attributes)
             else:
-                span.set_attributes(
-                    {
-                        SpanAttributes.AGENTSCOPE_OUTPUT: _serialize_to_str(last_chunk),
-                    },
-                )
+                response_attributes = get_generic_function_response_attributes(last_chunk)
+
+            span.set_attributes(response_attributes)
             span.set_status(opentelemetry.trace.StatusCode.OK)
         span.end()
 
@@ -286,7 +279,6 @@ def trace(
 
                     # non-generator result
                     span.set_attributes(get_generic_function_response_attributes(res))
-
                     span.set_status(opentelemetry.trace.StatusCode.OK)
                     span.end()
                     return res
@@ -418,9 +410,7 @@ def trace_reply(
                 res = await func(self, *args, **kwargs)
 
                 # Set the output attribute
-                span.set_attributes(
-                    get_agent_response_attributes(res),
-                )
+                span.set_attributes(get_agent_response_attributes(res),)
                 span.set_status(opentelemetry.trace.StatusCode.OK)
                 span.end()
                 return res
@@ -650,8 +640,7 @@ def trace_llm(
                     return _trace_async_generator_wrapper(res, span)
 
                 # non-generator result
-                response_attributes = get_llm_response_attributes(res)
-                span.set_attributes(response_attributes)
+                span.set_attributes(get_llm_response_attributes(res))
                 span.set_status(opentelemetry.trace.StatusCode.OK)
                 span.end()
                 return res

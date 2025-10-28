@@ -21,9 +21,6 @@ class SpanAttributes:
     AGENTSCOPE_FUNCTION_INPUT = "agentscope.function.input"
     AGENTSCOPE_FUNCTION_OUTPUT = "agentscope.function.output"
 
-    AGENTSCOPE_INPUT = "agentscope.input"
-    AGENTSCOPE_OUTPUT = "agentscope.output"
-
 
 class OperationNameValues(str, Enum):
     """The provider name values."""

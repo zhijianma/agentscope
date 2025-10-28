@@ -290,7 +290,7 @@ def get_llm_request_attributes(
         ),
         GenAIAttributes.GEN_AI_REQUEST_STOP_SEQUENCES: kwargs.get("stop_sequences"),
         GenAIAttributes.GEN_AI_REQUEST_SEED: kwargs.get("seed"),
-        SpanAttributes.AGENTSCOPE_INPUT: _serialize_to_str(
+        SpanAttributes.AGENTSCOPE_FUNCTION_INPUT: _serialize_to_str(
             {
                 "args": args,
                 "kwargs": kwargs,
@@ -404,7 +404,7 @@ def get_llm_response_attributes(
     output_messages = _get_llm_output_messages(chat_response)
     if output_messages:
         attributes[GenAIAttributes.GEN_AI_OUTPUT_MESSAGES] = _serialize_to_str(output_messages)
-    attributes[SpanAttributes.AGENTSCOPE_OUTPUT] = _serialize_to_str(chat_response)
+    attributes[SpanAttributes.AGENTSCOPE_FUNCTION_OUTPUT] = _serialize_to_str(chat_response)
     return attributes
 
 
@@ -503,7 +503,7 @@ def get_agent_request_attributes(
         }
     attributes[GenAIAttributes.GEN_AI_INPUT_MESSAGES] = _serialize_to_str(input_messages)
 
-    attributes[SpanAttributes.AGENTSCOPE_INPUT] = _serialize_to_str({
+    attributes[SpanAttributes.AGENTSCOPE_FUNCTION_INPUT] = _serialize_to_str({
         "args": args,
         "kwargs": kwargs,
     })
@@ -549,7 +549,7 @@ def get_agent_response_attributes(
     """
     attributes = {
         GenAIAttributes.GEN_AI_OUTPUT_MESSAGES: _serialize_to_str(_convert_msg_to_parts(agent_response)),
-        SpanAttributes.AGENTSCOPE_OUTPUT: _serialize_to_str(agent_response),
+        SpanAttributes.AGENTSCOPE_FUNCTION_OUTPUT: _serialize_to_str(agent_response),
     }
     return attributes
 
@@ -592,7 +592,7 @@ def get_tool_request_attributes(
                     attributes[GenAIAttributes.GEN_AI_TOOL_DESCRIPTION] = tool_func.get("description", "unknown_description")
 
 
-        attributes[SpanAttributes.AGENTSCOPE_INPUT] = _serialize_to_str(
+        attributes[SpanAttributes.AGENTSCOPE_FUNCTION_INPUT] = _serialize_to_str(
                     {
                         "tool_call": tool_call,
                     },
@@ -641,7 +641,7 @@ def get_tool_response_attributes(
         SpanAttributes.GEN_AI_TOOL_CALL_RESULT: _serialize_to_str(tool_response),
     }
 
-    attributes[SpanAttributes.AGENTSCOPE_OUTPUT] = _serialize_to_str(tool_response)
+    attributes[SpanAttributes.AGENTSCOPE_FUNCTION_OUTPUT] = _serialize_to_str(tool_response)
 
     return attributes
 
@@ -678,13 +678,6 @@ def get_formatter_request_attributes(
                 "kwargs": kwargs,
             },
         ),
-        SpanAttributes.AGENTSCOPE_INPUT: _serialize_to_str(
-            {
-                "args": args,
-                "kwargs": kwargs,
-            },
-        ),
-        SpanAttributes.META: _serialize_to_str({}),
     }
     return attributes
 
@@ -725,7 +718,6 @@ def get_formatter_response_attributes(
         for comprehensive tracing coverage.
     """
     attributes = {
-        SpanAttributes.AGENTSCOPE_OUTPUT: _serialize_to_str(response),
         SpanAttributes.AGENTSCOPE_FORMAT_OUTPUT: _serialize_to_str(response),
     }
     return attributes
@@ -757,13 +749,6 @@ def get_generic_function_request_attributes(
         GenAIAttributes.GEN_AI_OPERATION_NAME: OperationNameValues.INVOKE_GENERIC_FUNCTION.value,
         SpanAttributes.AGENTSCOPE_FUNCTION_NAME: function_name,
         SpanAttributes.AGENTSCOPE_FUNCTION_INPUT: _serialize_to_str(
-            {
-                "args": args,
-                "kwargs": kwargs,
-            },
-        ),
-
-        SpanAttributes.AGENTSCOPE_INPUT: _serialize_to_str(
             {
                 "args": args,
                 "kwargs": kwargs,
@@ -808,7 +793,6 @@ def get_generic_function_response_attributes(
     """
     attributes = {
         SpanAttributes.AGENTSCOPE_FUNCTION_OUTPUT: _serialize_to_str(response),
-        SpanAttributes.AGENTSCOPE_OUTPUT: _serialize_to_str(response),
     }
     return attributes
 
@@ -842,7 +826,7 @@ def get_embedding_request_attributes(
         GenAIAttributes.GEN_AI_REQUEST_MODEL: getattr(instance, "model_name", "unknown_model"),
         GenAIAttributes.GEN_AI_EMBEDDINGS_DIMENSION_COUNT: kwargs.get("dimensions"),
 
-        SpanAttributes.AGENTSCOPE_INPUT: _serialize_to_str(
+        SpanAttributes.AGENTSCOPE_FUNCTION_INPUT: _serialize_to_str(
                 {
                     "args": args,
                     "kwargs": kwargs,
@@ -887,6 +871,6 @@ def get_embedding_response_attributes(
         and any associated metadata from the embedding model.
     """
     attributes = {
-        SpanAttributes.AGENTSCOPE_OUTPUT: _serialize_to_str(response),
+        SpanAttributes.AGENTSCOPE_FUNCTION_OUTPUT: _serialize_to_str(response),
     }
     return attributes
