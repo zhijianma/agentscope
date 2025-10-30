@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """The tracing types class in agentscope."""
-from enum import Enum
+from opentelemetry.semconv._incubating.attributes import (
+    gen_ai_attributes as GenAIAttributes,
+)
+
 
 class SpanAttributes:
     """The span attributes."""
@@ -26,9 +29,12 @@ class SpanAttributes:
     AGENTSCOPE_FUNCTION_OUTPUT = "agentscope.function.output"
     """The agentscope function output."""
 
+    AGENTSCOPE_FUNCTION_METADATA = "agentscope.function.metadata"
+    """The agentscope function metadata."""
 
-class OperationNameValues(str, Enum):
-    """The provider name values."""
+
+class OperationNameValues:
+    """The operation name values."""
 
     FORMATTER = "format"
     """The formatter operation name."""
@@ -36,8 +42,23 @@ class OperationNameValues(str, Enum):
     INVOKE_GENERIC_FUNCTION = "invoke_generic_function"
     """The invoke generic function operation name."""
 
+    CHAT_MODEL = "chat_model"
+    """The chat model operation name."""
 
-class ProviderNameValues(str, Enum):
+    CHAT = GenAIAttributes.GenAiOperationNameValues.CHAT.value
+    """The chat operation name."""
+
+    INVOKE_AGENT = GenAIAttributes.GenAiOperationNameValues.INVOKE_AGENT.value
+    """The invoke agent operation name."""
+
+    EXECUTE_TOOL = GenAIAttributes.GenAiOperationNameValues.EXECUTE_TOOL.value
+    """The execute tool operation name."""
+
+    EMBEDDINGS = GenAIAttributes.GenAiOperationNameValues.EMBEDDINGS.value
+    """The embeddings operation name."""
+
+
+class ProviderNameValues:
     """The provider name values."""
 
     DASHSCOPE = "dashscope"
@@ -45,3 +66,15 @@ class ProviderNameValues(str, Enum):
 
     OLLAMA = "ollama"
     """The ollama provider name."""
+
+    DEEPSEEK = GenAIAttributes.GenAiProviderNameValues.DEEPSEEK.value
+    """The deepseek provider name."""
+
+    OPENAI = GenAIAttributes.GenAiProviderNameValues.OPENAI.value
+    """The openai provider name."""
+
+    ANTHROPIC = GenAIAttributes.GenAiProviderNameValues.ANTHROPIC.value
+    """The anthropic provider name."""
+
+    GCP_GEMINI = GenAIAttributes.GenAiProviderNameValues.GCP_GEMINI.value
+    """The gcp gemini provider name."""
