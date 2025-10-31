@@ -4,6 +4,14 @@ from opentelemetry.semconv._incubating.attributes import (
     gen_ai_attributes as GenAIAttributes,
 )
 
+class OldSpanKind:
+    """The span kind."""
+    AGENT = "AGENT"
+    TOOL = "TOOL"
+    LLM = "LLM"
+    EMBEDDING = "EMBEDDING"
+    FORMATTER = "FORMATTER"
+    COMMON = "COMMON"
 
 class SpanAttributes:
     """The span attributes."""
@@ -126,6 +134,14 @@ class SpanAttributes:
 
     AGENTSCOPE_FUNCTION_METADATA = "agentscope.function.metadata"
     """The agentscope function metadata."""
+
+
+    # Old attributes
+    OLD_SPAN_KIND = "span.kind"
+    OLD_OUTPUT = "output"
+    OLD_INPUT = "input"
+    OLD_META = "metadata"
+    OLD_PROJECT_RUN_ID = "project.run_id"
 
 
 class OperationNameValues:

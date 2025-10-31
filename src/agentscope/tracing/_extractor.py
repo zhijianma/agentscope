@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, Tuple, TYPE_CHECKING
 from .. import _config
 from ..embedding._embedding_base import EmbeddingModelBase
 from ..model._model_base import ChatModelBase
-from ._attributes import SpanAttributes, OperationNameValues, ProviderNameValues
+from ._attributes import SpanAttributes, OperationNameValues, ProviderNameValues, OldSpanKind
 from ._utils import _serialize_to_str
 
 if TYPE_CHECKING:
@@ -273,6 +273,23 @@ def get_llm_request_attributes(
                 "stream": getattr(instance, "stream", False),
             },
         ),
+
+
+        # Old attributes
+        SpanAttributes.OLD_SPAN_KIND: OldSpanKind.LLM,
+        SpanAttributes.OLD_PROJECT_RUN_ID: _serialize_to_str(_config.run_id),
+        SpanAttributes.OLD_INPUT: _serialize_to_str(
+            {
+                "args": args,
+                "kwargs": kwargs,
+            },
+        ),
+        SpanAttributes.OLD_META: _serialize_to_str(
+            {
+                "model_name": getattr(instance, "model_name", "unknown_model"),
+                "stream": getattr(instance, "stream", False),
+            },
+        ),
     }
 
     return {k: v for k, v in attributes.items() if v is not None}
@@ -380,6 +397,10 @@ def get_llm_response_attributes(
 
     # custom attributes
     attributes[SpanAttributes.AGENTSCOPE_FUNCTION_OUTPUT] = _serialize_to_str(
+        chat_response,
+    )
+
+    attributes[SpanAttributes.OLD_OUTPUT] = _serialize_to_str(
         chat_response,
     )
     return attributes
@@ -497,6 +518,22 @@ def get_agent_request_attributes(
         },
     )
 
+    # Old attributes
+    attributes[SpanAttributes.OLD_SPAN_KIND] = OldSpanKind.AGENT
+
+    attributes[SpanAttributes.OLD_PROJECT_RUN_ID] = _serialize_to_str(_config.run_id)
+    attributes[SpanAttributes.OLD_INPUT] = _serialize_to_str(
+            {
+                "args": args,
+                "kwargs": kwargs,
+            },
+    )
+    attributes[SpanAttributes.OLD_META] = _serialize_to_str(
+        {
+            "id": getattr(instance, "id", "unknown"),
+            "name": getattr(instance, "name", "unknown_agent"),
+        },
+    )
     return attributes
 
 
@@ -533,7 +570,13 @@ def get_agent_response_attributes(
         SpanAttributes.AGENTSCOPE_FUNCTION_OUTPUT: _serialize_to_str(
             agent_response,
         ),
+
+        # Old attributes
+        SpanAttributes.OLD_OUTPUT: _serialize_to_str(
+            agent_response,
+        ),
     }
+
     return attributes
 
 
@@ -591,6 +634,24 @@ def get_tool_request_attributes(
                 **tool_call,
             },
         )
+
+        # Old attributes
+        attributes[SpanAttributes.OLD_SPAN_KIND] = OldSpanKind.TOOL
+        attributes[SpanAttributes.OLD_PROJECT_RUN_ID] = _serialize_to_str(_config.run_id)
+        attributes[
+            SpanAttributes.OLD_INPUT
+        ] = _serialize_to_str(
+            {
+                "tool_call": tool_call,
+            },
+        )
+        attributes[
+            SpanAttributes.OLD_META
+        ] = _serialize_to_str(
+            {
+                **tool_call,
+            },
+        )
     return attributes
 
 
@@ -630,6 +691,10 @@ def get_tool_response_attributes(
         tool_response,
     )
 
+    # Old attributes
+    attributes[SpanAttributes.OLD_OUTPUT] = _serialize_to_str(
+        tool_response,
+    )
     return attributes
 
 
@@ -665,6 +730,19 @@ def get_formatter_request_attributes(
                 "kwargs": kwargs,
             },
         ),
+
+        # Old attributes
+        SpanAttributes.OLD_SPAN_KIND: OldSpanKind.FORMATTER,
+        SpanAttributes.OLD_PROJECT_RUN_ID: _serialize_to_str(_config.run_id),
+        SpanAttributes.OLD_INPUT: _serialize_to_str(
+            {
+                "args": args,
+                "kwargs": kwargs,
+            },
+        ),
+
+        # Need to delete
+        SpanAttributes.OLD_META: _serialize_to_str({}),
     }
     return attributes
 
@@ -698,6 +776,8 @@ def get_formatter_response_attributes(
     attributes = {
         SpanAttributes.AGENTSCOPE_FORMAT_OUTPUT: _serialize_to_str(response),
         SpanAttributes.AGENTSCOPE_FUNCTION_OUTPUT: _serialize_to_str(response),
+        # Old attributes
+        SpanAttributes.OLD_OUTPUT: _serialize_to_str(response),
     }
     return attributes
 
@@ -730,6 +810,16 @@ def get_generic_function_request_attributes(
                 "kwargs": kwargs,
             },
         ),
+        # Old attributes
+        SpanAttributes.OLD_SPAN_KIND: OldSpanKind.COMMON,
+        SpanAttributes.OLD_PROJECT_RUN_ID: _serialize_to_str(_config.run_id),
+        SpanAttributes.OLD_INPUT: _serialize_to_str(
+            {
+                "args": args,
+                "kwargs": kwargs,
+            },
+        ),
+        SpanAttributes.OLD_META: _serialize_to_str({})
     }
     return attributes
 
@@ -762,6 +852,8 @@ def get_generic_function_response_attributes(
     """
     attributes = {
         SpanAttributes.AGENTSCOPE_FUNCTION_OUTPUT: _serialize_to_str(response),
+        # Old attributes
+        SpanAttributes.OLD_OUTPUT: _serialize_to_str(response),
     }
     return attributes
 
@@ -799,6 +891,21 @@ def get_embedding_request_attributes(
                 "kwargs": kwargs,
             },
         ),
+
+        # Old attributes
+        SpanAttributes.OLD_SPAN_KIND: OldSpanKind.EMBEDDING,
+        SpanAttributes.OLD_PROJECT_RUN_ID: _serialize_to_str(_config.run_id),
+        SpanAttributes.OLD_INPUT: _serialize_to_str(
+            {
+                "args": args,
+                "kwargs": kwargs,
+            },
+        ),
+        SpanAttributes.OLD_META: _serialize_to_str(
+            {
+                "model_name": getattr(instance, "model_name", "unknown_model"),
+            },
+        ),
     }
     return attributes
 
@@ -831,5 +938,7 @@ def get_embedding_response_attributes(
     """
     attributes = {
         SpanAttributes.AGENTSCOPE_FUNCTION_OUTPUT: _serialize_to_str(response),
+        # Old attributes
+        SpanAttributes.OLD_OUTPUT: _serialize_to_str(response),
     }
     return attributes
