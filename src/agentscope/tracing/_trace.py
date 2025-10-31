@@ -15,17 +15,14 @@ from typing import (
 )
 
 import aioitertools
-from opentelemetry.semconv._incubating.attributes import (
-    gen_ai_attributes as GenAIAttributes,
-)
 
 from .. import _config
 from ..embedding._embedding_base import EmbeddingModelBase
 from ..model._model_base import ChatModelBase
 from .._logging import logger
-from ._types import SpanAttributes, OperationNameValues
+from ._attributes import SpanAttributes, OperationNameValues
 
-from ._utils import (
+from ._extractor import (
     get_common_attributes,
     get_agent_request_attributes,
     get_agent_span_name,
@@ -154,7 +151,7 @@ async def _trace_async_generator_wrapper(
 
             if (
                 getattr(span, "attributes", {}).get(
-                    GenAIAttributes.GEN_AI_OPERATION_NAME,
+                    SpanAttributes.GEN_AI_OPERATION_NAME,
                 )
                 is OperationNameValues.CHAT
             ):
@@ -162,7 +159,7 @@ async def _trace_async_generator_wrapper(
 
             elif (
                 getattr(span, "attributes", {}).get(
-                    GenAIAttributes.GEN_AI_OPERATION_NAME,
+                    SpanAttributes.GEN_AI_OPERATION_NAME,
                 )
                 is OperationNameValues.EXECUTE_TOOL
             ):
