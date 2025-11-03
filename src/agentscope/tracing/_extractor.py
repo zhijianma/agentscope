@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Utils for tracing."""
 import inspect
-from typing import Any, Dict, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Dict, Tuple, TYPE_CHECKING
 
 from .. import _config
 from ..embedding._embedding_base import EmbeddingModelBase
@@ -13,6 +13,10 @@ from ._attributes import (
     OldSpanKind,
 )
 from ._utils import _serialize_to_str
+from ._converter import (
+    _convert_formatted_message_to_parts,
+    _convert_block_to_part,
+)
 
 if TYPE_CHECKING:
     from ..agent import AgentBase
@@ -24,7 +28,6 @@ if TYPE_CHECKING:
     from ..message import (
         Msg,
         ToolUseBlock,
-        ContentBlock,
     )
     from ..embedding import EmbeddingResponse
     from ..model import ChatResponse
@@ -37,7 +40,6 @@ else:
     EmbeddingResponse = "EmbeddingResponse"
     ChatResponse = "ChatResponse"
     Span = "Span"
-    ContentBlock = "ContentBlock"
 
 
 _PROVIDER_MAP = {
@@ -69,130 +71,6 @@ _PROVIDER_MAP = {
 }
 
 
-# pylint: disable=R0912
-# pylint: disable=R0915
-def _convert_block_to_part(block: ContentBlock) -> Optional[dict[str, Any]]:
-    """Convert content block to OpenTelemetry GenAI part format.
-
-    Converts text, thinking, tool_use, tool_result, image, audio, video
-    blocks to standardized parts.
-
-    Args:
-        block: ContentBlock object
-
-    Returns:
-        Optional[dict[str, Any]]: Standardized part dict or None
-    """
-    block_type = block.get("type")
-
-    if block_type == "text":
-        part = {
-            "type": "text",
-            "content": block.get("text", ""),
-        }
-
-    elif block_type == "thinking":
-        part = {
-            "type": "reasoning",
-            "content": block.get("thinking", ""),
-        }
-
-    elif block_type == "tool_use":
-        part = {
-            "type": "tool_call",
-            "id": block.get("id", ""),
-            "name": block.get("name", ""),
-            "arguments": block.get("input", {}),
-        }
-
-    elif block_type == "tool_result":
-        output = block.get("output", "")
-        if isinstance(output, (list, dict)):
-            result = _serialize_to_str(output)
-        else:
-            result = str(output)
-
-        part = {
-            "type": "tool_call_response",
-            "id": block.get("id", ""),
-            "response": result,
-        }
-
-    elif block_type == "image":
-        source = block.get("source", {})
-        source_type = source.get("type")
-
-        if source_type == "url":
-            url = source.get("url", "")
-            part = {
-                "type": "uri",
-                "uri": url,
-                "modality": "image",
-            }
-        elif source_type == "base64":
-            data = source.get("data", "")
-            media_type = source.get("media_type", "image/jpeg")
-            part = {
-                "type": "blob",
-                "content": data,
-                "media_type": media_type,
-                "modality": "image",
-            }
-        else:
-            part = None
-
-    elif block_type == "audio":
-        source = block.get("source", {})
-        source_type = source.get("type")
-
-        if source_type == "url":
-            url = source.get("url", "")
-            part = {
-                "type": "uri",
-                "uri": url,
-                "modality": "audio",
-            }
-        elif source_type == "base64":
-            data = source.get("data", "")
-            media_type = source.get("media_type", "audio/wav")
-            part = {
-                "type": "blob",
-                "content": data,
-                "media_type": media_type,
-                "modality": "audio",
-            }
-        else:
-            part = None
-
-    elif block_type == "video":
-        source = block.get("source", {})
-        source_type = source.get("type")
-
-        if source_type == "url":
-            url = source.get("url", "")
-            part = {
-                "type": "uri",
-                "uri": url,
-                "modality": "video",
-            }
-        elif source_type == "base64":
-            data = source.get("data", "")
-            media_type = source.get("media_type", "video/mp4")
-            part = {
-                "type": "blob",
-                "content": data,
-                "media_type": media_type,
-                "modality": "video",
-            }
-        else:
-            part = None
-
-    else:
-        part = None
-
-    return part
-
-
 def get_common_attributes() -> Dict[str, str]:
     """Get common attributes for all spans.
 
@@ -219,6 +97,37 @@ def _get_provider_name(instance: Any) -> str:
     """
     classname = instance.__class__.__name__
     return _PROVIDER_MAP.get(classname, "unknown")
+
+
+def _get_llm_input_messages(
+    messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Convert formatter messages to OpenTelemetry GenAI format.
+
+    Supports all AgentScope formatters: OpenAI, Anthropic, Gemini,
+    DashScope, Ollama, DeepSeek.
+
+    Args:
+        messages: List of formatted message dicts from formatter output
+
+    Returns:
+        list[dict[str, Any]]: Messages with parts in GenAI format
+    """
+    try:
+        if not isinstance(messages, list):
+            return []
+
+        genai_messages = []
+        for msg in messages:
+            if isinstance(msg, dict):
+                converted_msg = _convert_formatted_message_to_parts(msg)
+                if converted_msg and converted_msg.get("parts"):
+                    genai_messages.append(converted_msg)
+
+        return genai_messages
+
+    except Exception:
+        return []
 
 
 def get_llm_request_attributes(
@@ -294,6 +203,21 @@ def get_llm_request_attributes(
             },
         ),
     }
+
+    # Extract and convert input messages from formatter output
+    messages = None
+    if args and len(args) > 0:
+        # First positional argument is typically messages
+        messages = args[0]
+    elif "messages" in kwargs:
+        messages = kwargs["messages"]
+
+    if messages and isinstance(messages, list):
+        input_messages = _get_llm_input_messages(messages)
+        if input_messages:
+            attributes[
+                SpanAttributes.GEN_AI_INPUT_MESSAGES
+            ] = _serialize_to_str(input_messages)
 
     return {k: v for k, v in attributes.items() if v is not None}
 
@@ -409,7 +333,7 @@ def get_llm_response_attributes(
     return attributes
 
 
-def _convert_msg_to_parts(
+def _get_agent_messages(
     msg: Msg,
 ) -> dict[str, Any]:
     """Convert AgentScope message to standardized parts format.
@@ -494,7 +418,7 @@ def get_agent_request_attributes(
     elif "msg" in kwargs:
         msg = kwargs["msg"]
     if msg:
-        input_messages = _convert_msg_to_parts(msg)
+        input_messages = _get_agent_messages(msg)
     else:
         input_messages = {
             "args": args,
@@ -570,7 +494,7 @@ def get_agent_response_attributes(
     """
     attributes = {
         SpanAttributes.GEN_AI_OUTPUT_MESSAGES: _serialize_to_str(
-            _convert_msg_to_parts(agent_response),
+            _get_agent_messages(agent_response),
         ),
         SpanAttributes.AGENTSCOPE_FUNCTION_OUTPUT: _serialize_to_str(
             agent_response,
