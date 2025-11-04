@@ -5,17 +5,6 @@ from opentelemetry.semconv._incubating.attributes import (
 )
 
 
-class OldSpanKind:
-    """The span kind."""
-
-    AGENT = "AGENT"
-    TOOL = "TOOL"
-    LLM = "LLM"
-    EMBEDDING = "EMBEDDING"
-    FORMATTER = "FORMATTER"
-    COMMON = "COMMON"
-
-
 class SpanAttributes:
     """The span attributes."""
 
