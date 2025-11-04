@@ -306,12 +306,7 @@ def get_llm_response_attributes(
             output_messages,
         )
 
-    # custom attributes
     attributes[SpanAttributes.AGENTSCOPE_FUNCTION_OUTPUT] = _serialize_to_str(
-        chat_response,
-    )
-
-    attributes[SpanAttributes.OLD_OUTPUT] = _serialize_to_str(
         chat_response,
     )
     return attributes
