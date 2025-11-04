@@ -15,13 +15,14 @@ from typing import (
 )
 
 import aioitertools
-from opentelemetry import trace as otel_trace
+from opentelemetry import trace as trace_api
 
 from .. import _config
 from ..embedding._embedding_base import EmbeddingModelBase
 from ..model._model_base import ChatModelBase
 from .._logging import logger
 from ._attributes import SpanAttributes, OperationNameValues
+from ._setup import get_tracer
 
 from ._extractor import (
     get_common_attributes,
@@ -98,7 +99,7 @@ def _trace_sync_generator_wrapper(
             yield chunk
     except Exception as e:
         has_error = True
-        span.set_status(otel_trace.StatusCode.ERROR, str(e))
+        span.set_status(trace_api.StatusCode.ERROR, str(e))
         span.record_exception(e)
         raise e from None
 
@@ -108,7 +109,7 @@ def _trace_sync_generator_wrapper(
             span.set_attributes(
                 get_generic_function_response_attributes(last_chunk),
             )
-            span.set_status(otel_trace.StatusCode.OK)
+            span.set_status(trace_api.StatusCode.OK)
         span.end()
 
 
@@ -139,7 +140,7 @@ async def _trace_async_generator_wrapper(
 
     except Exception as e:
         has_error = True
-        span.set_status(otel_trace.StatusCode.ERROR, str(e))
+        span.set_status(trace_api.StatusCode.ERROR, str(e))
         span.record_exception(e)
         raise e from None
 
@@ -168,7 +169,7 @@ async def _trace_async_generator_wrapper(
                 )
 
             span.set_attributes(response_attributes)
-            span.set_status(otel_trace.StatusCode.OK)
+            span.set_status(trace_api.StatusCode.OK)
         span.end()
 
 
@@ -214,7 +215,7 @@ def trace(
                 if not _check_tracing_enabled():
                     return await func(*args, **kwargs)
 
-                tracer = otel_trace.get_tracer(__name__)
+                tracer = get_tracer()
 
                 function_name = name if name else func.__name__
                 request_attributes = get_generic_function_request_attributes(
@@ -242,13 +243,13 @@ def trace(
                         span.set_attributes(
                             get_generic_function_response_attributes(res),
                         )
-                        span.set_status(otel_trace.StatusCode.OK)
+                        span.set_status(trace_api.StatusCode.OK)
                         span.end()
                         return res
 
                     except Exception as e:
                         span.set_status(
-                            otel_trace.StatusCode.ERROR,
+                            trace_api.StatusCode.ERROR,
                             str(e),
                         )
                         span.record_exception(e)
@@ -267,7 +268,7 @@ def trace(
             if not _check_tracing_enabled():
                 return func(*args, **kwargs)
 
-            tracer = otel_trace.get_tracer(__name__)
+            tracer = get_tracer()
 
             function_name = name if name else func.__name__
             request_attributes = get_generic_function_request_attributes(
@@ -295,13 +296,13 @@ def trace(
                     span.set_attributes(
                         get_generic_function_response_attributes(res),
                     )
-                    span.set_status(otel_trace.StatusCode.OK)
+                    span.set_status(trace_api.StatusCode.OK)
                     span.end()
                     return res
 
                 except Exception as e:
                     span.set_status(
-                        otel_trace.StatusCode.ERROR,
+                        trace_api.StatusCode.ERROR,
                         str(e),
                     )
                     span.record_exception(e)
@@ -331,7 +332,7 @@ def trace_toolkit(
         if not _check_tracing_enabled():
             return await func(self, tool_call=tool_call)
 
-        tracer = otel_trace.get_tracer(__name__)
+        tracer = get_tracer()
 
         request_attributes = get_tool_request_attributes(self, tool_call)
         span_name = get_tool_span_name(request_attributes)
@@ -354,7 +355,7 @@ def trace_toolkit(
 
             except Exception as e:
                 span.set_status(
-                    otel_trace.StatusCode.ERROR,
+                    trace_api.StatusCode.ERROR,
                     str(e),
                 )
                 span.record_exception(e)
@@ -400,7 +401,7 @@ def trace_reply(
             )
             return await func(self, *args, **kwargs)
 
-        tracer = otel_trace.get_tracer(__name__)
+        tracer = get_tracer()
 
         # Prepare the attributes for the span
 
@@ -423,13 +424,13 @@ def trace_reply(
 
                 # Set the output attribute
                 span.set_attributes(get_agent_response_attributes(res))
-                span.set_status(otel_trace.StatusCode.OK)
+                span.set_status(trace_api.StatusCode.OK)
                 span.end()
                 return res
 
             except Exception as e:
                 span.set_status(
-                    otel_trace.StatusCode.ERROR,
+                    trace_api.StatusCode.ERROR,
                     str(e),
                 )
                 span.record_exception(e)
@@ -463,7 +464,7 @@ def trace_embedding(
             )
             return await func(self, *args, **kwargs)
 
-        tracer = otel_trace.get_tracer(__name__)
+        tracer = get_tracer()
 
         # Prepare the attributes for the span
         request_attributes = get_embedding_request_attributes(
@@ -489,13 +490,13 @@ def trace_embedding(
 
                 # Set the output attribute
                 span.set_attributes(get_embedding_response_attributes(res))
-                span.set_status(otel_trace.StatusCode.OK)
+                span.set_status(trace_api.StatusCode.OK)
                 span.end()
                 return res
 
             except Exception as e:
                 span.set_status(
-                    otel_trace.StatusCode.ERROR,
+                    trace_api.StatusCode.ERROR,
                     str(e),
                 )
                 span.record_exception(e)
@@ -541,7 +542,7 @@ def trace_format(
             )
             return await func(self, *args, **kwargs)
 
-        tracer = otel_trace.get_tracer(__name__)
+        tracer = get_tracer()
 
         # Prepare the attributes for the span
         request_attributes = get_formatter_request_attributes(
@@ -566,13 +567,13 @@ def trace_format(
 
                 # Set the output attribute
                 span.set_attributes(get_formatter_response_attributes(res))
-                span.set_status(otel_trace.StatusCode.OK)
+                span.set_status(trace_api.StatusCode.OK)
                 span.end()
                 return res
 
             except Exception as e:
                 span.set_status(
-                    otel_trace.StatusCode.ERROR,
+                    trace_api.StatusCode.ERROR,
                     str(e),
                 )
                 span.record_exception(e)
@@ -628,7 +629,7 @@ def trace_llm(
             )
             return await func(self, *args, **kwargs)
 
-        tracer = otel_trace.get_tracer(__name__)
+        tracer = get_tracer()
 
         # Prepare the attributes for the span
         request_attributes = get_llm_request_attributes(self, args, kwargs)
@@ -654,13 +655,13 @@ def trace_llm(
 
                 # non-generator result
                 span.set_attributes(get_llm_response_attributes(res))
-                span.set_status(otel_trace.StatusCode.OK)
+                span.set_status(trace_api.StatusCode.OK)
                 span.end()
                 return res
 
             except Exception as e:
                 span.set_status(
-                    otel_trace.StatusCode.ERROR,
+                    trace_api.StatusCode.ERROR,
                     str(e),
                 )
                 span.record_exception(e)

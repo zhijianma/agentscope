@@ -17,6 +17,8 @@ else:
     ContentBlock = "ContentBlock"
 
 
+# pylint: disable=R0912
+# pylint: disable=R0915
 def _convert_block_to_part(block: ContentBlock) -> Optional[dict[str, Any]]:
     """Convert content block to OpenTelemetry GenAI part format.
 
@@ -139,6 +141,8 @@ def _convert_block_to_part(block: ContentBlock) -> Optional[dict[str, Any]]:
     return part
 
 
+# pylint: disable=R0912
+# pylint: disable=R0915
 def _parse_content_block(block: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse a single content block into parts.
 
@@ -397,6 +401,7 @@ def _parse_content_block(block: dict[str, Any]) -> list[dict[str, Any]]:
     return parts
 
 
+# pylint: disable=R0912
 def _convert_formatted_message_to_parts(
     formatted_msg: dict[str, Any],
 ) -> dict[str, Any]:

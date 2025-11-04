@@ -101,6 +101,7 @@ def init(
         endpoint = tracing_url
     else:
         endpoint = studio_url.strip("/") + "/v1/traces" if studio_url else None
+        endpoint = studio_url.strip("/")
 
     if endpoint:
         from .tracing import setup_tracing
