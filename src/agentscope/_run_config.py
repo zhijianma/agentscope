@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""The runtime configuration in agentscope."""
+"""The run instance configuration in agentscope."""
 from contextvars import ContextVar
 
 
 class _ConfigCls:
-    """The runtime configuration in agentscope."""
+    """The run instance configuration in agentscope."""
 
     def __init__(
         self,
