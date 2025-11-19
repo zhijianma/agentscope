@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 """The agentscope serialization module"""
 import os
+from contextvars import ContextVar
+from datetime import datetime
 
 import requests
+import shortuuid
 
 from . import exception
 from . import module
@@ -26,6 +29,35 @@ from ._logging import (
 )
 from .hooks import _equip_as_studio_hooks
 from ._version import __version__
+from ._agentscope_config import _ConfigCls
+
+
+def _generate_random_suffix(length: int) -> str:
+    """Generate a random suffix."""
+    return shortuuid.uuid()[:length]
+
+
+_config = _ConfigCls(
+    run_id=ContextVar("run_id", default=shortuuid.uuid()),
+    project=ContextVar(
+        "project",
+        default="UnnamedProject_At" + datetime.now().strftime("%Y%m%d"),
+    ),
+    name=ContextVar(
+        "name",
+        default=datetime.now().strftime("%H%M%S_")
+        + _generate_random_suffix(4),
+    ),
+    created_at=ContextVar(
+        "created_at",
+        default=datetime.now().strftime("%H%M%S_")
+        + _generate_random_suffix(4),
+    ),
+    trace_enabled=ContextVar(
+        "trace_enabled",
+        default=False,
+    ),
+)
 
 
 def init(
@@ -45,7 +77,9 @@ def init(
         name (`str | None`, optional):
             The name of the run.
         run_id (`str | None`, optional):
-            The run ID.
+            The identity of a running instance, which can be an agent, or a
+            multi-agent system. The `run_id` is used in AgentScope-Studio to
+            distinguish different runs.
         logging_path (`str | None`, optional):
             The path to saving the log file. If not provided, logs will not be
             saved.
@@ -59,8 +93,6 @@ def init(
             If not provided and `studio_url` is provided, it will send traces
             to the AgentScope Studio's tracing endpoint.
     """
-
-    from . import _config
 
     if project:
         _config.project = project
