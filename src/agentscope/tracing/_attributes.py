@@ -108,12 +108,12 @@ class SpanAttributes:
     GEN_AI_EMBEDDINGS_DIMENSION_COUNT = "gen_ai.embeddings.dimension.count"
     """The gen ai embeddings dimension count."""
 
-    # AgentScope Custom Attributes
-    AGENTSCOPE_FORMAT_INPUT = "agentscope.format.input"
-    """The agentscope format input."""
+    # AgentScope Extended Attributes
+    AGENTSCOPE_FORMAT_TARGET = "agentscope.format.target"
+    """The agentscope format target."""
 
-    AGENTSCOPE_FORMAT_OUTPUT = "agentscope.format.output"
-    """The agentscope format output."""
+    AGENTSCOPE_FORMAT_COUNT = "agentscope.format.count"
+    """The count of formatted messages in the result."""
 
     AGENTSCOPE_FUNCTION_NAME = "agentscope.function.name"
     """The agentscope function name."""
@@ -123,9 +123,6 @@ class SpanAttributes:
 
     AGENTSCOPE_FUNCTION_OUTPUT = "agentscope.function.output"
     """The agentscope function output."""
-
-    AGENTSCOPE_FUNCTION_METADATA = "agentscope.function.metadata"
-    """The agentscope function metadata."""
 
     # Old attributes
     OLD_SPAN_KIND = "span.kind"

@@ -41,14 +41,7 @@ else:
     Span = "Span"
 
 
-_PROVIDER_MAP = {
-    # LLM Models
-    "OpenAIChatModel": ProviderNameValues.OPENAI,
-    "GeminiChatModel": ProviderNameValues.GCP_GEMINI,
-    "AnthropicChatModel": ProviderNameValues.ANTHROPIC,
-    "DashScopeChatModel": ProviderNameValues.DASHSCOPE,
-    "OllamaChatModel": ProviderNameValues.OLLAMA,
-    # Formatter
+_FORMATTER_MAP = {
     "DashScopeChatFormatter": ProviderNameValues.DASHSCOPE,
     "DashScopeMultiAgentFormatter": ProviderNameValues.DASHSCOPE,
     "OpenAIChatFormatter": ProviderNameValues.OPENAI,
@@ -61,12 +54,6 @@ _PROVIDER_MAP = {
     "OllamaMultiAgentFormatter": ProviderNameValues.OLLAMA,
     "DeepSeekChatFormatter": ProviderNameValues.DEEPSEEK,
     "DeepSeekMultiAgentFormatter": ProviderNameValues.DEEPSEEK,
-    # Embedding Models
-    "DashScopeTextEmbedding": ProviderNameValues.DASHSCOPE,
-    "DashScopeMultiModalEmbedding": ProviderNameValues.DASHSCOPE,
-    "OpenAITextEmbedding": ProviderNameValues.OPENAI,
-    "GeminiTextEmbedding": ProviderNameValues.GCP_GEMINI,
-    "OllamaTextEmbedding": ProviderNameValues.OLLAMA,
 }
 
 
@@ -83,19 +70,19 @@ def get_common_attributes() -> Dict[str, str]:
     }
 
 
-def _get_provider_name(instance: Any) -> str:
-    """Get provider name for the given instance.
+def _get_format_target(instance: Any) -> str:
+    """Get format target for the given instance.
 
-    Maps AgentScope class names to OpenTelemetry GenAI provider names.
+    Maps AgentScope class names to format target names.
 
     Args:
-        instance: Model, formatter, or embedding instance
+        instance: Formatter instance
 
     Returns:
-        str: Standardized provider name or "unknown"
+        str: Format target name or "unknown"
     """
     classname = instance.__class__.__name__
-    return _PROVIDER_MAP.get(classname, "unknown")
+    return _FORMATTER_MAP.get(classname, "unknown")
 
 
 def _get_llm_input_messages(
@@ -150,7 +137,9 @@ def get_llm_request_attributes(
     attributes = {
         # required attributes
         SpanAttributes.GEN_AI_OPERATION_NAME: OperationNameValues.CHAT,
-        SpanAttributes.GEN_AI_PROVIDER_NAME: _get_provider_name(instance),
+        # FIXME https://github.com/agentscope-ai/agentscope-java/pull/73/files#diff-faa45863959b1eaa1ae12cc1010aa187bc62e1988fd446a4193f8375169ddc78R597-R616
+        # getProviderName
+        SpanAttributes.GEN_AI_PROVIDER_NAME: "unknown",
         # conditionally required attributes
         SpanAttributes.GEN_AI_REQUEST_MODEL: getattr(
             instance,
@@ -180,12 +169,6 @@ def get_llm_request_attributes(
                 "kwargs": kwargs,
             },
         ),
-        SpanAttributes.AGENTSCOPE_FUNCTION_METADATA: _serialize_to_str(
-            {
-                "model_name": getattr(instance, "model_name", "unknown_model"),
-                "stream": getattr(instance, "stream", False),
-            },
-        ),
     }
 
     # Extract and convert input messages from formatter output
@@ -202,6 +185,8 @@ def get_llm_request_attributes(
             attributes[
                 SpanAttributes.GEN_AI_INPUT_MESSAGES
             ] = _serialize_to_str(input_messages)
+
+    # FIXME: the lack of tool definitions
 
     return {k: v for k, v in attributes.items() if v is not None}
 
@@ -290,6 +275,7 @@ def get_llm_response_attributes(
             "id",
             "unknown_id",
         ),
+        # FIXME: finish reason should be capture in chat response
         SpanAttributes.GEN_AI_RESPONSE_FINISH_REASONS: '["stop"]',
     }
     if hasattr(chat_response, "usage") and chat_response.usage:
@@ -336,6 +322,8 @@ def _get_agent_messages(
         formatted_msg = {
             "role": msg.role,
             "parts": parts,
+            "name": msg.name,
+            "finish_reason": "stop",
         }
 
         if msg.name:
@@ -352,6 +340,8 @@ def _get_agent_messages(
                     "content": str(msg.content) if msg.content else "",
                 },
             ],
+            "name": msg.name,
+            "finish_reason": "stop",
         }
 
 
@@ -386,9 +376,6 @@ def get_agent_request_attributes(
             instance.__class__,
         )
         or "No description available",
-        SpanAttributes.GEN_AI_SYSTEM_INSTRUCTIONS: instance.sys_prompt
-        if hasattr(instance, "sys_prompt")
-        else None,
     }
 
     msg = None
@@ -398,29 +385,15 @@ def get_agent_request_attributes(
         msg = kwargs["msg"]
     if msg:
         input_messages = _get_agent_messages(msg)
-    else:
-        input_messages = {
-            "args": args,
-            "kwargs": kwargs,
-        }
-    attributes[SpanAttributes.GEN_AI_INPUT_MESSAGES] = _serialize_to_str(
-        input_messages,
-    )
+        attributes[SpanAttributes.GEN_AI_INPUT_MESSAGES] = _serialize_to_str(
+            input_messages,
+        )
 
     # custom attributes
     attributes[SpanAttributes.AGENTSCOPE_FUNCTION_INPUT] = _serialize_to_str(
         {
             "args": args,
             "kwargs": kwargs,
-        },
-    )
-
-    attributes[
-        SpanAttributes.AGENTSCOPE_FUNCTION_METADATA
-    ] = _serialize_to_str(
-        {
-            "name": getattr(instance, "name", "unknown_agent"),
-            "id": getattr(instance, "id", "unknown"),
         },
     )
     return attributes
@@ -510,13 +483,6 @@ def get_tool_request_attributes(
                 "tool_call": tool_call,
             },
         )
-        attributes[
-            SpanAttributes.AGENTSCOPE_FUNCTION_METADATA
-        ] = _serialize_to_str(
-            {
-                **tool_call,
-            },
-        )
     return attributes
 
 
@@ -577,13 +543,7 @@ def get_formatter_request_attributes(
     """
     attributes = {
         SpanAttributes.GEN_AI_OPERATION_NAME: (OperationNameValues.FORMATTER),
-        SpanAttributes.GEN_AI_PROVIDER_NAME: _get_provider_name(instance),
-        SpanAttributes.AGENTSCOPE_FORMAT_INPUT: _serialize_to_str(
-            {
-                "args": args,
-                "kwargs": kwargs,
-            },
-        ),
+        SpanAttributes.AGENTSCOPE_FORMAT_TARGET: _get_format_target(instance),
         SpanAttributes.AGENTSCOPE_FUNCTION_INPUT: _serialize_to_str(
             {
                 "args": args,
@@ -605,7 +565,7 @@ def get_formatter_span_name(attributes: Dict[str, str]) -> str:
     """
     return (
         f"{attributes[SpanAttributes.GEN_AI_OPERATION_NAME]} "
-        f"{attributes[SpanAttributes.GEN_AI_PROVIDER_NAME]}"
+        f"{attributes[SpanAttributes.AGENTSCOPE_FORMAT_TARGET]}"
     )
 
 
@@ -621,7 +581,6 @@ def get_formatter_response_attributes(
         Dict[str, str]: OpenTelemetry GenAI response attributes
     """
     attributes = {
-        SpanAttributes.AGENTSCOPE_FORMAT_OUTPUT: _serialize_to_str(response),
         SpanAttributes.AGENTSCOPE_FUNCTION_OUTPUT: _serialize_to_str(response),
     }
     return attributes
