@@ -13,9 +13,7 @@ from agentscope.tool import (
     execute_python_code,
     view_text_file,
 )
-import agentscope
 
-agentscope.init(studio_url="http://localhost:3000")
 
 async def main() -> None:
     """The main entry point for the ReAct agent example."""

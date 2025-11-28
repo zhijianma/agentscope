@@ -223,7 +223,9 @@ def _get_tool_definitions(
             flat_tool = {k: v for k, v in flat_tool.items() if v is not None}
             flat_tools.append(flat_tool)
 
-        return _serialize_to_str(flat_tools) if flat_tools else None
+        if flat_tools:
+            return _serialize_to_str(flat_tools)
+        return None
 
     except Exception:
         return None
@@ -692,7 +694,7 @@ def get_formatter_response_attributes(
     """Get formatter response attributes for OpenTelemetry tracing.
 
     Args:
-        response: Response object from formatter
+        response: Response object from formatter (list[dict])
 
     Returns:
         Dict[str, str]: OpenTelemetry GenAI response attributes
@@ -700,6 +702,9 @@ def get_formatter_response_attributes(
     attributes = {
         SpanAttributes.AGENTSCOPE_FUNCTION_OUTPUT: _serialize_to_str(response),
     }
+    if isinstance(response, list):
+        attributes[SpanAttributes.AGENTSCOPE_FORMAT_COUNT] = len(response)
+
     return attributes
 
 
