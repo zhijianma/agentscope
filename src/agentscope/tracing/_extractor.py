@@ -204,6 +204,9 @@ def _get_tool_definitions(
 
     try:
         # Convert nested format to flat format for OpenTelemetry GenAI
+        # TODO: Currently only supports "function" type tools. If other tool
+        # types are added in the future (e.g., "retrieval", "code_interpreter",
+        # "browser"), this conversion logic needs to be updated to handle them.
         flat_tools = []
         for tool in tools:
             if not isinstance(tool, dict) or "function" not in tool:
