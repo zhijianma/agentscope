@@ -56,6 +56,27 @@ _FORMATTER_MAP = {
     "DeepSeekMultiAgentFormatter": ProviderNameValues.DEEPSEEK,
 }
 
+# Map model class names to provider names
+_MODEL_PROVIDER_MAP = {
+    "DashScopeChatModel": ProviderNameValues.DASHSCOPE,
+    "OpenAIChatModel": ProviderNameValues.OPENAI,
+    "AnthropicChatModel": ProviderNameValues.ANTHROPIC,
+    "GeminiChatModel": ProviderNameValues.GCP_GEMINI,
+    "OllamaChatModel": ProviderNameValues.OLLAMA,
+    "TrinityChatModel": ProviderNameValues.OPENAI,
+}
+
+# Map base URL fragments to provider names for OpenAI-compatible APIs
+_BASE_URL_PROVIDER_MAP = [
+    ("api.openai.com", ProviderNameValues.OPENAI),
+    ("dashscope", ProviderNameValues.DASHSCOPE),
+    ("deepseek", ProviderNameValues.DEEPSEEK),
+    ("moonshot", ProviderNameValues.MOONSHOT),
+    ("generativelanguage.googleapis.com", ProviderNameValues.GCP_GEMINI),
+    ("openai.azure.com", ProviderNameValues.AZURE_AI_OPENAI),
+    ("amazonaws.com", ProviderNameValues.AWS_BEDROCK),
+]
+
 
 def get_common_attributes() -> Dict[str, str]:
     """Get common attributes for all spans.
@@ -83,6 +104,44 @@ def _get_format_target(instance: Any) -> str:
     """
     classname = instance.__class__.__name__
     return _FORMATTER_MAP.get(classname, "unknown")
+
+
+def _get_provider_name(instance: ChatModelBase) -> str:
+    """Get provider name from ChatModelBase instance.
+
+    Maps ChatModelBase class names to provider names, with special handling
+    for OpenAI-compatible APIs that may use different base URLs.
+    This follows the implementation pattern from agentscope-java PR #73.
+
+    Args:
+        instance: ChatModelBase instance
+
+    Returns:
+        str: Provider name (e.g., "openai", "dashscope", "anthropic")
+    """
+    classname = instance.__class__.__name__
+    
+    # Special handling for OpenAIChatModel - check base_url
+    if classname == "OpenAIChatModel":
+        # Try to get base_url from the client
+        base_url = None
+        if hasattr(instance, "client") and hasattr(instance.client, "base_url"):
+            base_url = str(instance.client.base_url)
+        
+        # If base_url is None or empty, return default OpenAI
+        if not base_url:
+            return ProviderNameValues.OPENAI
+        
+        # Check base_url fragments to identify provider
+        for url_fragment, provider_name in _BASE_URL_PROVIDER_MAP:
+            if url_fragment in base_url:
+                return provider_name
+        
+        # If no match found, return openai as default
+        return ProviderNameValues.OPENAI
+    
+    # For other model types, use direct mapping
+    return _MODEL_PROVIDER_MAP.get(classname, "unknown")
 
 
 def _get_llm_input_messages(
@@ -116,6 +175,57 @@ def _get_llm_input_messages(
         return []
 
 
+def _get_tool_definitions(
+    tools: list[dict[str, Any]] | None,
+    tool_choice: str | None,
+) -> str | None:
+    """Extract and serialize tool definitions for tracing.
+
+    Converts AgentScope/OpenAI nested tool format to OpenTelemetry GenAI
+    flat format for tracing.
+
+    Args:
+        tools: List of tool definitions in OpenAI format with nested structure:
+            [{"type": "function", "function": {"name": ..., "parameters": ...}}]
+        tool_choice: Tool choice mode (auto, none, any, required, or tool name)
+
+    Returns:
+        str | None: Serialized tool definitions in flat format:
+            [{"type": "function", "name": ..., "parameters": ...}]
+            or None if tools should not be traced
+    """
+    #  No tools provided
+    if tools is None or not isinstance(tools, list) or len(tools) == 0:
+        return None
+
+    #  Tool choice is explicitly "none" (model should not use tools)
+    if tool_choice == "none":
+        return None
+
+    try:
+        # Convert nested format to flat format for OpenTelemetry GenAI
+        flat_tools = []
+        for tool in tools:
+            if not isinstance(tool, dict) or "function" not in tool:
+                continue
+
+            func_def = tool["function"]
+            flat_tool = {
+                "type": tool.get("type", "function"),
+                "name": func_def.get("name"),
+                "description": func_def.get("description"),
+                "parameters": func_def.get("parameters"),
+            }
+            # Remove None values
+            flat_tool = {k: v for k, v in flat_tool.items() if v is not None}
+            flat_tools.append(flat_tool)
+
+        return _serialize_to_str(flat_tools) if flat_tools else None
+
+    except Exception:
+        return None
+
+
 def get_llm_request_attributes(
     instance: ChatModelBase,
     args: Tuple[Any, ...],
@@ -137,9 +247,7 @@ def get_llm_request_attributes(
     attributes = {
         # required attributes
         SpanAttributes.GEN_AI_OPERATION_NAME: OperationNameValues.CHAT,
-        # FIXME https://github.com/agentscope-ai/agentscope-java/pull/73/files#diff-faa45863959b1eaa1ae12cc1010aa187bc62e1988fd446a4193f8375169ddc78R597-R616
-        # getProviderName
-        SpanAttributes.GEN_AI_PROVIDER_NAME: "unknown",
+        SpanAttributes.GEN_AI_PROVIDER_NAME: _get_provider_name(instance),
         # conditionally required attributes
         SpanAttributes.GEN_AI_REQUEST_MODEL: getattr(
             instance,
@@ -186,7 +294,13 @@ def get_llm_request_attributes(
                 SpanAttributes.GEN_AI_INPUT_MESSAGES
             ] = _serialize_to_str(input_messages)
 
-    # FIXME: the lack of tool definitions
+    # Extract tool definitions if provided
+    tool_definitions = _get_tool_definitions(
+        tools=kwargs.get("tools"),
+        tool_choice=kwargs.get("tool_choice"),
+    )
+    if tool_definitions:
+        attributes[SpanAttributes.GEN_AI_TOOL_DEFINITIONS] = tool_definitions
 
     return {k: v for k, v in attributes.items() if v is not None}
 

@@ -104,6 +104,9 @@ class SpanAttributes:
     GEN_AI_TOOL_CALL_RESULT = "gen_ai.tool.call.result"
     """The gen ai tool call result."""
 
+    GEN_AI_TOOL_DEFINITIONS = "gen_ai.tool.definitions"
+    """The gen ai tool definitions."""
+
     # GenAI Embedding Attributes
     GEN_AI_EMBEDDINGS_DIMENSION_COUNT = "gen_ai.embeddings.dimension.count"
     """The gen ai embeddings dimension count."""
@@ -177,3 +180,12 @@ class ProviderNameValues:
 
     GCP_GEMINI = GenAIAttributes.GenAiProviderNameValues.GCP_GEMINI.value
     """The gcp gemini provider name."""
+
+    MOONSHOT = "moonshot"
+    """The moonshot provider name."""
+
+    AZURE_AI_OPENAI = GenAIAttributes.GenAiProviderNameValues.AZURE_AI_OPENAI.value
+    """The azure openai provider name."""
+
+    AWS_BEDROCK = GenAIAttributes.GenAiProviderNameValues.AWS_BEDROCK.value
+    """The aws bedrock provider name."""
