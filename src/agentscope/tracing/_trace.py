@@ -336,7 +336,7 @@ def trace_toolkit(
 
         request_attributes = get_tool_request_attributes(self, tool_call)
         span_name = get_tool_span_name(request_attributes)
-        function_name = f"{func.__name__}"
+        function_name = (f"{self.__class__.__name__}.{func.__name__}",)
         with tracer.start_as_current_span(
             name=span_name,
             attributes={
