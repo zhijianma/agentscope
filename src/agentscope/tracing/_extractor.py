@@ -13,7 +13,6 @@ from ._attributes import (
 )
 from ._utils import _serialize_to_str
 from ._converter import (
-    _convert_formatted_message_to_parts,
     _convert_block_to_part,
 )
 
@@ -120,59 +119,31 @@ def _get_provider_name(instance: ChatModelBase) -> str:
         str: Provider name (e.g., "openai", "dashscope", "anthropic")
     """
     classname = instance.__class__.__name__
-    
+
     # Special handling for OpenAIChatModel - check base_url
     if classname == "OpenAIChatModel":
         # Try to get base_url from the client
         base_url = None
-        if hasattr(instance, "client") and hasattr(instance.client, "base_url"):
+        if hasattr(instance, "client") and hasattr(
+            instance.client,
+            "base_url",
+        ):
             base_url = str(instance.client.base_url)
-        
+
         # If base_url is None or empty, return default OpenAI
         if not base_url:
             return ProviderNameValues.OPENAI
-        
+
         # Check base_url fragments to identify provider
         for url_fragment, provider_name in _BASE_URL_PROVIDER_MAP:
             if url_fragment in base_url:
                 return provider_name
-        
+
         # If no match found, return openai as default
         return ProviderNameValues.OPENAI
-    
+
     # For other model types, use direct mapping
     return _MODEL_PROVIDER_MAP.get(classname, "unknown")
-
-
-def _get_llm_input_messages(
-    messages: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """Convert formatter messages to OpenTelemetry GenAI format.
-
-    Supports all AgentScope formatters: OpenAI, Anthropic, Gemini,
-    DashScope, Ollama, DeepSeek.
-
-    Args:
-        messages: List of formatted message dicts from formatter output
-
-    Returns:
-        list[dict[str, Any]]: Messages with parts in GenAI format
-    """
-    try:
-        if not isinstance(messages, list):
-            return []
-
-        genai_messages = []
-        for msg in messages:
-            if isinstance(msg, dict):
-                converted_msg = _convert_formatted_message_to_parts(msg)
-                if converted_msg and converted_msg.get("parts"):
-                    genai_messages.append(converted_msg)
-
-        return genai_messages
-
-    except Exception:
-        return []
 
 
 def _get_tool_definitions(
@@ -186,7 +157,8 @@ def _get_tool_definitions(
 
     Args:
         tools: List of tool definitions in OpenAI format with nested structure:
-            [{"type": "function", "function": {"name": ..., "parameters": ...}}]
+            [{"type": "function", "function": {"name": ...,
+             "parameters": ...}}]
         tool_choice: Tool choice mode (auto, none, any, required, or tool name)
 
     Returns:
@@ -283,21 +255,6 @@ def get_llm_request_attributes(
             },
         ),
     }
-
-    # Extract and convert input messages from formatter output
-    messages = None
-    if args and len(args) > 0:
-        # First positional argument is typically messages
-        messages = args[0]
-    elif "messages" in kwargs:
-        messages = kwargs["messages"]
-
-    if messages and isinstance(messages, list):
-        input_messages = _get_llm_input_messages(messages)
-        if input_messages:
-            attributes[
-                SpanAttributes.GEN_AI_INPUT_MESSAGES
-            ] = _serialize_to_str(input_messages)
 
     # Extract tool definitions if provided
     tool_definitions = _get_tool_definitions(

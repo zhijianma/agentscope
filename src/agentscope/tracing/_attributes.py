@@ -184,7 +184,9 @@ class ProviderNameValues:
     MOONSHOT = "moonshot"
     """The moonshot provider name."""
 
-    AZURE_AI_OPENAI = GenAIAttributes.GenAiProviderNameValues.AZURE_AI_OPENAI.value
+    AZURE_AI_OPENAI = (
+        GenAIAttributes.GenAiProviderNameValues.AZURE_AI_OPENAI.value
+    )
     """The azure openai provider name."""
 
     AWS_BEDROCK = GenAIAttributes.GenAiProviderNameValues.AWS_BEDROCK.value
