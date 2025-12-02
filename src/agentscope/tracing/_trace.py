@@ -59,7 +59,7 @@ if TYPE_CHECKING:
     )
     from ..embedding import EmbeddingResponse
     from ..model import ChatResponse
-    from trace import Span
+    from opentelemetry.trace import Span
 else:
     Toolkit = "Toolkit"
     ToolResponse = "ToolResponse"
@@ -179,8 +179,9 @@ def trace(
     """A generic tracing decorator for synchronous and asynchronous functions.
 
     Args:
-        name (`str`):
-            The name of the span to be created.
+        name (Optional[str]):
+            The name of the span to be created. If not provided,
+            the name of the function will be used.
 
     Returns:
         `Callable`:

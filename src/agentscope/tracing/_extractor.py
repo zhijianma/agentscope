@@ -21,23 +21,15 @@ if TYPE_CHECKING:
     from ..formatter import FormatterBase
     from ..tool import (
         Toolkit,
-        ToolResponse,
     )
     from ..message import (
         Msg,
         ToolUseBlock,
     )
-    from ..embedding import EmbeddingResponse
-    from ..model import ChatResponse
-    from opentelemetry.trace import Span
 else:
     Toolkit = "Toolkit"
-    ToolResponse = "ToolResponse"
     Msg = "Msg"
     ToolUseBlock = "ToolUseBlock"
-    EmbeddingResponse = "EmbeddingResponse"
-    ChatResponse = "ChatResponse"
-    Span = "Span"
 
 
 _FORMATTER_MAP = {
@@ -302,7 +294,7 @@ def _get_llm_output_messages(
             return chat_response
 
         parts = []
-        finish_reason = "stop"  # 默认完成原因
+        finish_reason = "stop"  # Default finish reason
 
         for block in chat_response.content:
             part = _convert_block_to_part(block)
@@ -334,7 +326,7 @@ def _get_llm_output_messages(
 
 def get_llm_response_attributes(
     chat_response: Any,
-) -> Dict[str, str]:
+) -> Dict[str, Any]:
     """Get LLM response attributes for OpenTelemetry tracing.
 
     Extracts response metadata and formats into GenAI attributes.
@@ -389,7 +381,6 @@ def _get_agent_messages(
     """
     try:
         parts = []
-        # 遍历所有内容块
         for block in msg.get_content_blocks():
             part = _convert_block_to_part(block)
             if part:
