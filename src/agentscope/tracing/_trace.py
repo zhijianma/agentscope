@@ -152,15 +152,14 @@ async def _trace_async_generator_wrapper(
                 getattr(span, "attributes", {}).get(
                     SpanAttributes.GEN_AI_OPERATION_NAME,
                 )
-                is OperationNameValues.CHAT
+                == OperationNameValues.CHAT
             ):
                 response_attributes = get_llm_response_attributes(last_chunk)
-
             elif (
                 getattr(span, "attributes", {}).get(
                     SpanAttributes.GEN_AI_OPERATION_NAME,
                 )
-                is OperationNameValues.EXECUTE_TOOL
+                == OperationNameValues.EXECUTE_TOOL
             ):
                 response_attributes = get_tool_response_attributes(last_chunk)
             else:
@@ -337,7 +336,7 @@ def trace_toolkit(
 
         request_attributes = get_tool_request_attributes(self, tool_call)
         span_name = get_tool_span_name(request_attributes)
-        function_name = (f"{self.__class__.__name__}.{func.__name__}",)
+        function_name = f"{self.__class__.__name__}.{func.__name__}"
         with tracer.start_as_current_span(
             name=span_name,
             attributes={
@@ -408,7 +407,7 @@ def trace_reply(
 
         request_attributes = get_agent_request_attributes(self, args, kwargs)
         span_name = get_agent_span_name(request_attributes)
-        function_name = (f"{self.__class__.__name__}.{func.__name__}",)
+        function_name = f"{self.__class__.__name__}.{func.__name__}"
         # Begin the llm call span
         with tracer.start_as_current_span(
             name=span_name,

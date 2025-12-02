@@ -32,10 +32,10 @@ def get_tracer(
     """Get the tracer for the given name and version.
 
     Args:
-        name (`str`):
+        name (`str | None`, optional):
             The name of the tracer.
-        version (`str`):
-            The version of the tracer.
+        version (`str | None`, optional):
+            The version of the tracer
 
     Returns:
         `trace_api.Tracer`: The tracer for the given name and version.

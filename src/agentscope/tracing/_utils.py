@@ -58,7 +58,7 @@ def _to_serializable(
 
 
 def _serialize_to_str(value: Any) -> str:
-    """Get input attributes
+    """Serialize input value to JSON string.
 
     Args:
         value (`Any`):

@@ -127,13 +127,6 @@ class SpanAttributes:
     AGENTSCOPE_FUNCTION_OUTPUT = "agentscope.function.output"
     """The agentscope function output."""
 
-    # Old attributes
-    OLD_SPAN_KIND = "span.kind"
-    OLD_OUTPUT = "output"
-    OLD_INPUT = "input"
-    OLD_META = "metadata"
-    OLD_PROJECT_RUN_ID = "project.run_id"
-
 
 class OperationNameValues:
     """The operation name values."""
@@ -143,9 +136,6 @@ class OperationNameValues:
 
     INVOKE_GENERIC_FUNCTION = "invoke_generic_function"
     """The invoke generic function operation name."""
-
-    CHAT_MODEL = "chat_model"
-    """The chat model operation name."""
 
     CHAT = GenAIAttributes.GenAiOperationNameValues.CHAT.value
     """The chat operation name."""

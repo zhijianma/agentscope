@@ -25,10 +25,20 @@ def _convert_block_to_part(block: ContentBlock) -> Optional[dict[str, Any]]:
     blocks to standardized parts.
 
     Args:
-        block: ContentBlock object
+        block (`ContentBlock`):
+            The content block object to convert. Supported block types:
+            - text: Text content block
+            - thinking: Reasoning/thinking content block
+            - tool_use: Tool call block with id, name, and input
+            - tool_result: Tool result block with id and output
+            - image: Image block with source (url or base64)
+            - audio: Audio block with source (url or base64)
+            - video: Video block with source (url or base64)
 
     Returns:
-        Optional[dict[str, Any]]: Standardized part dict or None
+        `Optional[dict[str, Any]]`:
+            Standardized part dictionary in OpenTelemetry GenAI format,
+            or None if the block type is invalid or cannot be converted.
     """
     block_type = block.get("type")
 
