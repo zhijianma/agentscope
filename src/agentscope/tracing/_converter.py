@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Message converter utilities for OpenTelemetry tracing.
+"""Convert ContentBlock to OpenTelemetry GenAI part format."""
 
-This module provides utilities to convert messages from different formats
-(AgentScope Msg objects, formatter outputs) into OpenTelemetry GenAI format.
-"""
 from typing import Any, Dict, TYPE_CHECKING
 
 from ._utils import _serialize_to_str

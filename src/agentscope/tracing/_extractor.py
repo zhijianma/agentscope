@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Utils for tracing."""
+"""Extract attributes from AgentScope components for OpenTelemetry tracing."""
 import inspect
 from typing import Any, Dict, Tuple, TYPE_CHECKING
 

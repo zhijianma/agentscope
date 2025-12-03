@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Utils for tracing."""
+"""Serialize objects to JSON string."""
 import datetime
 import enum
 import inspect
