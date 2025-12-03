@@ -1,16 +1,11 @@
 # -*- coding: utf-8 -*-
 """Convert ContentBlock to OpenTelemetry GenAI part format."""
 
-from typing import Any, Dict, TYPE_CHECKING
+from typing import Any, Dict
+
+from ..message import ContentBlock
 
 from ._utils import _serialize_to_str
-
-if TYPE_CHECKING:
-    from ..message import (
-        ContentBlock,
-    )
-else:
-    ContentBlock = "ContentBlock"
 
 
 def _convert_media_block(

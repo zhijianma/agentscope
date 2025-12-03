@@ -15,14 +15,13 @@ from typing import (
 
 import aioitertools
 
-
 from .. import _config
-from ..embedding._embedding_base import EmbeddingModelBase
-from ..model._model_base import ChatModelBase
+from ..embedding import EmbeddingModelBase, EmbeddingResponse
 from .._logging import logger
-from ._attributes import SpanAttributes, OperationNameValues
-from ._setup import _get_tracer
+from ..message import Msg, ToolUseBlock
+from ..model import ChatModelBase, ChatResponse
 
+from ._attributes import SpanAttributes, OperationNameValues
 from ._extractor import (
     _get_common_attributes,
     _get_agent_request_attributes,
@@ -44,6 +43,7 @@ from ._extractor import (
     _get_embedding_span_name,
     _get_embedding_response_attributes,
 )
+from ._setup import _get_tracer
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Span
@@ -54,21 +54,13 @@ if TYPE_CHECKING:
         Toolkit,
         ToolResponse,
     )
-    from ..message import (
-        Msg,
-        ToolUseBlock,
-    )
-    from ..embedding import EmbeddingResponse
-    from ..model import ChatResponse
 
 else:
+    AgentBase = "AgentBase"
+    FormatterBase = "FormatterBase"
     Span = "Span"
     Toolkit = "Toolkit"
     ToolResponse = "ToolResponse"
-    Msg = "Msg"
-    ToolUseBlock = "ToolUseBlock"
-    EmbeddingResponse = "EmbeddingResponse"
-    ChatResponse = "ChatResponse"
 
 
 T = TypeVar("T")

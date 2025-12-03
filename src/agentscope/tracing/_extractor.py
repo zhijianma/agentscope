@@ -4,17 +4,17 @@ import inspect
 from typing import Any, Dict, Tuple, TYPE_CHECKING
 
 from .. import _config
-from ..embedding._embedding_base import EmbeddingModelBase
-from ..model._model_base import ChatModelBase
+from ..embedding import EmbeddingModelBase
+from ..message import Msg, ToolUseBlock
+from ..model import ChatModelBase
+
 from ._attributes import (
     SpanAttributes,
     OperationNameValues,
     ProviderNameValues,
 )
+from ._converter import _convert_block_to_part
 from ._utils import _serialize_to_str
-from ._converter import (
-    _convert_block_to_part,
-)
 
 if TYPE_CHECKING:
     from ..agent import AgentBase
@@ -22,15 +22,10 @@ if TYPE_CHECKING:
     from ..tool import (
         Toolkit,
     )
-    from ..message import (
-        Msg,
-        ToolUseBlock,
-    )
 else:
+    AgentBase = "AgentBase"
+    FormatterBase = "FormatterBase"
     Toolkit = "Toolkit"
-    Msg = "Msg"
-    ToolUseBlock = "ToolUseBlock"
-
 
 _CLASS_NAME_MAP = {
     "dashscope": ProviderNameValues.DASHSCOPE,
