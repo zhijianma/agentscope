@@ -7,7 +7,6 @@ from typing import (
     Generator,
     AsyncGenerator,
     Callable,
-    Optional,
     Any,
     Coroutine,
     TypeVar,
@@ -15,38 +14,40 @@ from typing import (
 )
 
 import aioitertools
-from opentelemetry import trace as trace_api
+
 
 from .. import _config
 from ..embedding._embedding_base import EmbeddingModelBase
 from ..model._model_base import ChatModelBase
 from .._logging import logger
 from ._attributes import SpanAttributes, OperationNameValues
-from ._setup import get_tracer
+from ._setup import _get_tracer
 
 from ._extractor import (
-    get_common_attributes,
-    get_agent_request_attributes,
-    get_agent_span_name,
-    get_agent_response_attributes,
-    get_llm_request_attributes,
-    get_llm_span_name,
-    get_llm_response_attributes,
-    get_tool_request_attributes,
-    get_tool_span_name,
-    get_tool_response_attributes,
-    get_formatter_request_attributes,
-    get_formatter_span_name,
-    get_formatter_response_attributes,
-    get_generic_function_request_attributes,
-    get_generic_function_span_name,
-    get_generic_function_response_attributes,
-    get_embedding_request_attributes,
-    get_embedding_span_name,
-    get_embedding_response_attributes,
+    _get_common_attributes,
+    _get_agent_request_attributes,
+    _get_agent_span_name,
+    _get_agent_response_attributes,
+    _get_llm_request_attributes,
+    _get_llm_span_name,
+    _get_llm_response_attributes,
+    _get_tool_request_attributes,
+    _get_tool_span_name,
+    _get_tool_response_attributes,
+    _get_formatter_request_attributes,
+    _get_formatter_span_name,
+    _get_formatter_response_attributes,
+    _get_generic_function_request_attributes,
+    _get_generic_function_span_name,
+    _get_generic_function_response_attributes,
+    _get_embedding_request_attributes,
+    _get_embedding_span_name,
+    _get_embedding_response_attributes,
 )
 
 if TYPE_CHECKING:
+    from opentelemetry.trace import Span
+
     from ..agent import AgentBase
     from ..formatter import FormatterBase
     from ..tool import (
@@ -59,15 +60,15 @@ if TYPE_CHECKING:
     )
     from ..embedding import EmbeddingResponse
     from ..model import ChatResponse
-    from opentelemetry.trace import Span
+
 else:
+    Span = "Span"
     Toolkit = "Toolkit"
     ToolResponse = "ToolResponse"
     Msg = "Msg"
     ToolUseBlock = "ToolUseBlock"
     EmbeddingResponse = "EmbeddingResponse"
     ChatResponse = "ChatResponse"
-    Span = "Span"
 
 
 T = TypeVar("T")
@@ -82,6 +83,33 @@ def _check_tracing_enabled() -> bool:
      solution.
     """
     return _config.trace_enabled
+
+
+def _set_span_success_status(span: Span) -> None:
+    """Set the status of the span.
+    Args:
+        span (`Span`):
+            The OpenTelemetry span to be used for tracing.
+    """
+    from opentelemetry import trace as trace_api
+
+    span.set_status(trace_api.StatusCode.OK)
+    span.end()
+
+
+def _set_span_error_status(span: Span, e: Exception) -> None:
+    """Set the status of the span.
+    Args:
+        span (`Span`):
+            The OpenTelemetry span to be used for tracing.
+        e (`Exception`):
+            The exception to be recorded.
+    """
+    from opentelemetry import trace as trace_api
+
+    span.set_status(trace_api.StatusCode.ERROR, str(e))
+    span.record_exception(e)
+    span.end()
 
 
 def _trace_sync_generator_wrapper(
@@ -99,18 +127,16 @@ def _trace_sync_generator_wrapper(
             yield chunk
     except Exception as e:
         has_error = True
-        span.set_status(trace_api.StatusCode.ERROR, str(e))
-        span.record_exception(e)
+        _set_span_error_status(span, e)
         raise e from None
 
     finally:
         if not has_error:
             # Set the last chunk as output
             span.set_attributes(
-                get_generic_function_response_attributes(last_chunk),
+                _get_generic_function_response_attributes(last_chunk),
             )
-            span.set_status(trace_api.StatusCode.OK)
-        span.end()
+            _set_span_success_status(span)
 
 
 async def _trace_async_generator_wrapper(
@@ -129,7 +155,6 @@ async def _trace_async_generator_wrapper(
         `T`:
             The output of the async generator.
     """
-
     has_error = False
 
     try:
@@ -140,8 +165,7 @@ async def _trace_async_generator_wrapper(
 
     except Exception as e:
         has_error = True
-        span.set_status(trace_api.StatusCode.ERROR, str(e))
-        span.record_exception(e)
+        _set_span_error_status(span, e)
         raise e from None
 
     finally:
@@ -154,31 +178,32 @@ async def _trace_async_generator_wrapper(
                 )
                 == OperationNameValues.CHAT
             ):
-                response_attributes = get_llm_response_attributes(last_chunk)
+                response_attributes = _get_llm_response_attributes(last_chunk)
             elif (
                 getattr(span, "attributes", {}).get(
                     SpanAttributes.GEN_AI_OPERATION_NAME,
                 )
                 == OperationNameValues.EXECUTE_TOOL
             ):
-                response_attributes = get_tool_response_attributes(last_chunk)
+                response_attributes = _get_tool_response_attributes(last_chunk)
             else:
-                response_attributes = get_generic_function_response_attributes(
-                    last_chunk,
+                response_attributes = (
+                    _get_generic_function_response_attributes(
+                        last_chunk,
+                    )
                 )
 
             span.set_attributes(response_attributes)
-            span.set_status(trace_api.StatusCode.OK)
-        span.end()
+            _set_span_success_status(span)
 
 
 def trace(
-    name: Optional[str] = None,
+    name: str | None = None,
 ) -> Callable:
     """A generic tracing decorator for synchronous and asynchronous functions.
 
     Args:
-        name (Optional[str]):
+        name (`str | None`, optional):
             The name of the span to be created. If not provided,
             the name of the function will be used.
 
@@ -215,16 +240,16 @@ def trace(
                 if not _check_tracing_enabled():
                     return await func(*args, **kwargs)
 
-                tracer = get_tracer()
+                tracer = _get_tracer()
 
                 function_name = name if name else func.__name__
-                request_attributes = get_generic_function_request_attributes(
+                request_attributes = _get_generic_function_request_attributes(
                     function_name,
                     args,
                     kwargs,
                 )
 
-                span_name = get_generic_function_span_name(request_attributes)
+                span_name = _get_generic_function_span_name(request_attributes)
                 with tracer.start_as_current_span(
                     name=span_name,
                     attributes=request_attributes,
@@ -241,19 +266,13 @@ def trace(
 
                         # non-generator result
                         span.set_attributes(
-                            get_generic_function_response_attributes(res),
+                            _get_generic_function_response_attributes(res),
                         )
-                        span.set_status(trace_api.StatusCode.OK)
-                        span.end()
+                        _set_span_success_status(span)
                         return res
 
                     except Exception as e:
-                        span.set_status(
-                            trace_api.StatusCode.ERROR,
-                            str(e),
-                        )
-                        span.record_exception(e)
-                        span.end()
+                        _set_span_error_status(span, e)
                         raise e from None
 
             return wrapper
@@ -268,16 +287,16 @@ def trace(
             if not _check_tracing_enabled():
                 return func(*args, **kwargs)
 
-            tracer = get_tracer()
+            tracer = _get_tracer()
 
             function_name = name if name else func.__name__
-            request_attributes = get_generic_function_request_attributes(
+            request_attributes = _get_generic_function_request_attributes(
                 function_name,
                 args,
                 kwargs,
             )
 
-            span_name = get_generic_function_span_name(request_attributes)
+            span_name = _get_generic_function_span_name(request_attributes)
             with tracer.start_as_current_span(
                 name=span_name,
                 attributes=request_attributes,
@@ -294,19 +313,13 @@ def trace(
 
                     # non-generator result
                     span.set_attributes(
-                        get_generic_function_response_attributes(res),
+                        _get_generic_function_response_attributes(res),
                     )
-                    span.set_status(trace_api.StatusCode.OK)
-                    span.end()
+                    _set_span_success_status(span)
                     return res
 
                 except Exception as e:
-                    span.set_status(
-                        trace_api.StatusCode.ERROR,
-                        str(e),
-                    )
-                    span.record_exception(e)
-                    span.end()
+                    _set_span_error_status(span, e)
                     raise e from None
 
         return sync_wrapper
@@ -332,16 +345,16 @@ def trace_toolkit(
         if not _check_tracing_enabled():
             return await func(self, tool_call=tool_call)
 
-        tracer = get_tracer()
+        tracer = _get_tracer()
 
-        request_attributes = get_tool_request_attributes(self, tool_call)
-        span_name = get_tool_span_name(request_attributes)
+        request_attributes = _get_tool_request_attributes(self, tool_call)
+        span_name = _get_tool_span_name(request_attributes)
         function_name = f"{self.__class__.__name__}.{func.__name__}"
         with tracer.start_as_current_span(
             name=span_name,
             attributes={
                 **request_attributes,
-                **get_common_attributes(),
+                **_get_common_attributes(),
                 SpanAttributes.AGENTSCOPE_FUNCTION_NAME: function_name,
             },
             end_on_exit=False,
@@ -354,11 +367,7 @@ def trace_toolkit(
                 return _trace_async_generator_wrapper(res, span)
 
             except Exception as e:
-                span.set_status(
-                    trace_api.StatusCode.ERROR,
-                    str(e),
-                )
-                span.record_exception(e)
+                _set_span_error_status(span, e)
                 span.end()
                 raise e from None
 
@@ -401,19 +410,19 @@ def trace_reply(
             )
             return await func(self, *args, **kwargs)
 
-        tracer = get_tracer()
+        tracer = _get_tracer()
 
         # Prepare the attributes for the span
 
-        request_attributes = get_agent_request_attributes(self, args, kwargs)
-        span_name = get_agent_span_name(request_attributes)
+        request_attributes = _get_agent_request_attributes(self, args, kwargs)
+        span_name = _get_agent_span_name(request_attributes)
         function_name = f"{self.__class__.__name__}.{func.__name__}"
         # Begin the llm call span
         with tracer.start_as_current_span(
             name=span_name,
             attributes={
                 **request_attributes,
-                **get_common_attributes(),
+                **_get_common_attributes(),
                 SpanAttributes.AGENTSCOPE_FUNCTION_NAME: function_name,
             },
             end_on_exit=False,
@@ -423,18 +432,12 @@ def trace_reply(
                 res = await func(self, *args, **kwargs)
 
                 # Set the output attribute
-                span.set_attributes(get_agent_response_attributes(res))
-                span.set_status(trace_api.StatusCode.OK)
-                span.end()
+                span.set_attributes(_get_agent_response_attributes(res))
+                _set_span_success_status(span)
                 return res
 
             except Exception as e:
-                span.set_status(
-                    trace_api.StatusCode.ERROR,
-                    str(e),
-                )
-                span.record_exception(e)
-                span.end()
+                _set_span_error_status(span, e)
                 raise e from None
 
     return wrapper
@@ -464,22 +467,22 @@ def trace_embedding(
             )
             return await func(self, *args, **kwargs)
 
-        tracer = get_tracer()
+        tracer = _get_tracer()
 
         # Prepare the attributes for the span
-        request_attributes = get_embedding_request_attributes(
+        request_attributes = _get_embedding_request_attributes(
             self,
             args,
             kwargs,
         )
-        span_name = get_embedding_span_name(request_attributes)
+        span_name = _get_embedding_span_name(request_attributes)
         function_name = f"{self.__class__.__name__}.{func.__name__}"
 
         with tracer.start_as_current_span(
             name=span_name,
             attributes={
                 **request_attributes,
-                **get_common_attributes(),
+                **_get_common_attributes(),
                 SpanAttributes.AGENTSCOPE_FUNCTION_NAME: function_name,
             },
             end_on_exit=False,
@@ -489,18 +492,12 @@ def trace_embedding(
                 res = await func(self, *args, **kwargs)
 
                 # Set the output attribute
-                span.set_attributes(get_embedding_response_attributes(res))
-                span.set_status(trace_api.StatusCode.OK)
-                span.end()
+                span.set_attributes(_get_embedding_response_attributes(res))
+                _set_span_success_status(span)
                 return res
 
             except Exception as e:
-                span.set_status(
-                    trace_api.StatusCode.ERROR,
-                    str(e),
-                )
-                span.record_exception(e)
-                span.end()
+                _set_span_error_status(span, e)
                 raise e from None
 
     return wrapper
@@ -542,21 +539,21 @@ def trace_format(
             )
             return await func(self, *args, **kwargs)
 
-        tracer = get_tracer()
+        tracer = _get_tracer()
 
         # Prepare the attributes for the span
-        request_attributes = get_formatter_request_attributes(
+        request_attributes = _get_formatter_request_attributes(
             self,
             args,
             kwargs,
         )
-        span_name = get_formatter_span_name(request_attributes)
+        span_name = _get_formatter_span_name(request_attributes)
         function_name = f"{self.__class__.__name__}.{func.__name__}"
         with tracer.start_as_current_span(
             name=span_name,
             attributes={
                 **request_attributes,
-                **get_common_attributes(),
+                **_get_common_attributes(),
                 SpanAttributes.AGENTSCOPE_FUNCTION_NAME: function_name,
             },
             end_on_exit=False,
@@ -566,18 +563,12 @@ def trace_format(
                 res = await func(self, *args, **kwargs)
 
                 # Set the output attribute
-                span.set_attributes(get_formatter_response_attributes(res))
-                span.set_status(trace_api.StatusCode.OK)
-                span.end()
+                span.set_attributes(_get_formatter_response_attributes(res))
+                _set_span_success_status(span)
                 return res
 
             except Exception as e:
-                span.set_status(
-                    trace_api.StatusCode.ERROR,
-                    str(e),
-                )
-                span.record_exception(e)
-                span.end()
+                _set_span_error_status(span, e)
                 raise e from None
 
     return wrapper
@@ -629,18 +620,18 @@ def trace_llm(
             )
             return await func(self, *args, **kwargs)
 
-        tracer = get_tracer()
+        tracer = _get_tracer()
 
         # Prepare the attributes for the span
-        request_attributes = get_llm_request_attributes(self, args, kwargs)
-        span_name = get_llm_span_name(request_attributes)
+        request_attributes = _get_llm_request_attributes(self, args, kwargs)
+        span_name = _get_llm_span_name(request_attributes)
         function_name = f"{self.__class__.__name__}.__call__"
         # Begin the llm call span
         with tracer.start_as_current_span(
             name=span_name,
             attributes={
                 **request_attributes,
-                **get_common_attributes(),
+                **_get_common_attributes(),
                 SpanAttributes.AGENTSCOPE_FUNCTION_NAME: function_name,
             },
             end_on_exit=False,
@@ -654,18 +645,12 @@ def trace_llm(
                     return _trace_async_generator_wrapper(res, span)
 
                 # non-generator result
-                span.set_attributes(get_llm_response_attributes(res))
-                span.set_status(trace_api.StatusCode.OK)
-                span.end()
+                span.set_attributes(_get_llm_response_attributes(res))
+                _set_span_success_status(span)
                 return res
 
             except Exception as e:
-                span.set_status(
-                    trace_api.StatusCode.ERROR,
-                    str(e),
-                )
-                span.record_exception(e)
-                span.end()
+                _set_span_error_status(span, e)
                 raise e from None
 
     return async_wrapper

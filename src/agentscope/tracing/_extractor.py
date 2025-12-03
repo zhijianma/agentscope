@@ -32,29 +32,14 @@ else:
     ToolUseBlock = "ToolUseBlock"
 
 
-_FORMATTER_MAP = {
-    "DashScopeChatFormatter": ProviderNameValues.DASHSCOPE,
-    "DashScopeMultiAgentFormatter": ProviderNameValues.DASHSCOPE,
-    "OpenAIChatFormatter": ProviderNameValues.OPENAI,
-    "OpenAIMultiAgentFormatter": ProviderNameValues.OPENAI,
-    "AnthropicChatFormatter": ProviderNameValues.ANTHROPIC,
-    "AnthropicMultiAgentFormatter": ProviderNameValues.ANTHROPIC,
-    "GeminiChatFormatter": ProviderNameValues.GCP_GEMINI,
-    "GeminiMultiAgentFormatter": ProviderNameValues.GCP_GEMINI,
-    "OllamaChatFormatter": ProviderNameValues.OLLAMA,
-    "OllamaMultiAgentFormatter": ProviderNameValues.OLLAMA,
-    "DeepSeekChatFormatter": ProviderNameValues.DEEPSEEK,
-    "DeepSeekMultiAgentFormatter": ProviderNameValues.DEEPSEEK,
-}
-
-# Map model class names to provider names
-_MODEL_PROVIDER_MAP = {
-    "DashScopeChatModel": ProviderNameValues.DASHSCOPE,
-    "OpenAIChatModel": ProviderNameValues.OPENAI,
-    "AnthropicChatModel": ProviderNameValues.ANTHROPIC,
-    "GeminiChatModel": ProviderNameValues.GCP_GEMINI,
-    "OllamaChatModel": ProviderNameValues.OLLAMA,
-    "TrinityChatModel": ProviderNameValues.OPENAI,
+_CLASS_NAME_MAP = {
+    "dashscope": ProviderNameValues.DASHSCOPE,
+    "openai": ProviderNameValues.OPENAI,
+    "anthropic": ProviderNameValues.ANTHROPIC,
+    "gemini": ProviderNameValues.GCP_GEMINI,
+    "ollama": ProviderNameValues.OLLAMA,
+    "deepseek": ProviderNameValues.DEEPSEEK,
+    "trinity": ProviderNameValues.OPENAI,
 }
 
 # Map base URL fragments to provider names for OpenAI-compatible APIs
@@ -69,11 +54,12 @@ _BASE_URL_PROVIDER_MAP = [
 ]
 
 
-def get_common_attributes() -> Dict[str, str]:
+def _get_common_attributes() -> Dict[str, str]:
     """Get common attributes for all spans.
 
     Returns:
-        Dict[str, str]: Common span attributes including conversation ID
+        `Dict[str, str]`:
+        Common span attributes including conversation ID
     """
     return {
         SpanAttributes.GEN_AI_CONVERSATION_ID: _serialize_to_str(
@@ -96,7 +82,12 @@ def _get_format_target(instance: Any) -> str:
             Format target name (e.g., "openai", "dashscope", "anthropic")
     """
     classname = instance.__class__.__name__
-    return _FORMATTER_MAP.get(classname, "unknown")
+    prefix_key = (
+        classname.removesuffix("ChatFormatter")
+        .removesuffix("MultiAgentFormatter")
+        .lower()
+    )
+    return _CLASS_NAME_MAP.get(prefix_key, "unknown")
 
 
 def _get_provider_name(instance: ChatModelBase) -> str:
@@ -139,7 +130,12 @@ def _get_provider_name(instance: ChatModelBase) -> str:
         return ProviderNameValues.OPENAI
 
     # For other model types, use direct mapping
-    return _MODEL_PROVIDER_MAP.get(classname, "unknown")
+    prefix_key = (
+        classname.removesuffix("ChatModel")
+        .removesuffix("MultiAgentModel")
+        .lower()
+    )
+    return _CLASS_NAME_MAP.get(prefix_key, "unknown")
 
 
 def _get_tool_definitions(
@@ -204,7 +200,7 @@ def _get_tool_definitions(
         return None
 
 
-def get_llm_request_attributes(
+def _get_llm_request_attributes(
     instance: ChatModelBase,
     args: Tuple[Any, ...],
     kwargs: Dict[str, Any],
@@ -276,7 +272,7 @@ def get_llm_request_attributes(
     return {k: v for k, v in attributes.items() if v is not None}
 
 
-def get_llm_span_name(attributes: Dict[str, str]) -> str:
+def _get_llm_span_name(attributes: Dict[str, str]) -> str:
     """Generate span name for LLM operations.
 
     Args:
@@ -352,7 +348,7 @@ def _get_llm_output_messages(
         ]
 
 
-def get_llm_response_attributes(
+def _get_llm_response_attributes(
     chat_response: Any,
 ) -> Dict[str, Any]:
     """Get LLM response attributes for OpenTelemetry tracing.
@@ -449,7 +445,7 @@ def _get_agent_messages(
         }
 
 
-def get_agent_request_attributes(
+def _get_agent_request_attributes(
     instance: "AgentBase",
     args: Tuple[Any, ...],
     kwargs: Dict[str, Any],
@@ -509,7 +505,7 @@ def get_agent_request_attributes(
     return attributes
 
 
-def get_agent_span_name(attributes: Dict[str, str]) -> str:
+def _get_agent_span_name(attributes: Dict[str, str]) -> str:
     """Generate span name for agent operations.
 
     Args:
@@ -528,7 +524,7 @@ def get_agent_span_name(attributes: Dict[str, str]) -> str:
     )
 
 
-def get_agent_response_attributes(
+def _get_agent_response_attributes(
     agent_response: Any,
 ) -> Dict[str, str]:
     """Get agent response attributes for OpenTelemetry tracing.
@@ -554,7 +550,7 @@ def get_agent_response_attributes(
     return attributes
 
 
-def get_tool_request_attributes(
+def _get_tool_request_attributes(
     instance: "Toolkit",
     tool_call: ToolUseBlock,
 ) -> Dict[str, str]:
@@ -611,7 +607,7 @@ def get_tool_request_attributes(
     return attributes
 
 
-def get_tool_span_name(attributes: Dict[str, str]) -> str:
+def _get_tool_span_name(attributes: Dict[str, str]) -> str:
     """Generate span name for tool operations.
 
     Args:
@@ -630,7 +626,7 @@ def get_tool_span_name(attributes: Dict[str, str]) -> str:
     )
 
 
-def get_tool_response_attributes(
+def _get_tool_response_attributes(
     tool_response: Any,
 ) -> Dict[str, str]:
     """Get tool response attributes for OpenTelemetry tracing.
@@ -657,7 +653,7 @@ def get_tool_response_attributes(
     return attributes
 
 
-def get_formatter_request_attributes(
+def _get_formatter_request_attributes(
     instance: "FormatterBase",
     args: Tuple[Any, ...],
     kwargs: Dict[str, Any],
@@ -693,7 +689,7 @@ def get_formatter_request_attributes(
     return attributes
 
 
-def get_formatter_span_name(attributes: Dict[str, str]) -> str:
+def _get_formatter_span_name(attributes: Dict[str, str]) -> str:
     """Generate span name for formatter operations.
 
     Args:
@@ -712,7 +708,7 @@ def get_formatter_span_name(attributes: Dict[str, str]) -> str:
     )
 
 
-def get_formatter_response_attributes(
+def _get_formatter_response_attributes(
     response: Any,
 ) -> Dict[str, Any]:
     """Get formatter response attributes for OpenTelemetry tracing.
@@ -736,7 +732,7 @@ def get_formatter_response_attributes(
     return attributes
 
 
-def get_generic_function_request_attributes(
+def _get_generic_function_request_attributes(
     function_name: str,
     args: Tuple[Any, ...],
     kwargs: Dict[str, Any],
@@ -773,7 +769,7 @@ def get_generic_function_request_attributes(
     return attributes
 
 
-def get_generic_function_span_name(attributes: Dict[str, str]) -> str:
+def _get_generic_function_span_name(attributes: Dict[str, str]) -> str:
     """Generate span name for generic function operations.
 
     Args:
@@ -792,7 +788,7 @@ def get_generic_function_span_name(attributes: Dict[str, str]) -> str:
     )
 
 
-def get_generic_function_response_attributes(
+def _get_generic_function_response_attributes(
     response: Any,
 ) -> Dict[str, str]:
     """Get generic function response attributes for tracing.
@@ -813,7 +809,7 @@ def get_generic_function_response_attributes(
     return attributes
 
 
-def get_embedding_request_attributes(
+def _get_embedding_request_attributes(
     instance: "EmbeddingModelBase",
     args: Tuple[Any, ...],
     kwargs: Dict[str, Any],
@@ -857,7 +853,7 @@ def get_embedding_request_attributes(
     return {k: v for k, v in attributes.items() if v is not None}
 
 
-def get_embedding_span_name(attributes: Dict[str, str]) -> str:
+def _get_embedding_span_name(attributes: Dict[str, str]) -> str:
     """Generate span name for embedding operations.
 
     Args:
@@ -876,7 +872,7 @@ def get_embedding_span_name(attributes: Dict[str, str]) -> str:
     )
 
 
-def get_embedding_response_attributes(
+def _get_embedding_response_attributes(
     response: Any,
 ) -> Dict[str, str]:
     """Get embedding response attributes for OpenTelemetry tracing.

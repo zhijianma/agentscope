@@ -4,7 +4,7 @@
 This module provides utilities to convert messages from different formats
 (AgentScope Msg objects, formatter outputs) into OpenTelemetry GenAI format.
 """
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, Dict, TYPE_CHECKING
 
 from ._utils import _serialize_to_str
 
@@ -16,9 +16,53 @@ else:
     ContentBlock = "ContentBlock"
 
 
-# pylint: disable=R0912
-# pylint: disable=R0915
-def _convert_block_to_part(block: ContentBlock) -> Optional[dict[str, Any]]:
+def _convert_media_block(
+    source: Dict[str, Any],
+    modality: str,
+) -> Dict[str, Any] | None:
+    """Convert media block (image/audio/video) to OpenTelemetry format.
+
+    Args:
+        source (`Dict[str, Any]`):
+            Source Dictionary with type, url/data, and media_type.
+        modality (`str`):
+            Media modality: "image", "audio", or "video".
+
+    Returns:
+        `Dict[str, Any] | None`:
+            Converted part Dictionary or None if source type is invalid.
+    """
+    source_type = source.get("type")
+
+    if source_type == "url":
+        url = source.get("url", "")
+        return {
+            "type": "uri",
+            "uri": url,
+            "modality": modality,
+        }
+
+    if source_type == "base64":
+        data = source.get("data", "")
+        media_type = source.get("media_type")
+        if not media_type:
+            default_media_types = {
+                "image": "image/jpeg",
+                "audio": "audio/wav",
+                "video": "video/mp4",
+            }
+            media_type = default_media_types.get(modality, "unknown")
+        return {
+            "type": "blob",
+            "content": data,
+            "media_type": media_type,
+            "modality": modality,
+        }
+
+    return None
+
+
+def _convert_block_to_part(block: ContentBlock) -> Dict[str, Any] | None:
     """Convert content block to OpenTelemetry GenAI part format.
 
     Converts text, thinking, tool_use, tool_result, image, audio, video
@@ -36,24 +80,25 @@ def _convert_block_to_part(block: ContentBlock) -> Optional[dict[str, Any]]:
             - video: Video block with source (url or base64)
 
     Returns:
-        `Optional[dict[str, Any]]`:
-            Standardized part dictionary in OpenTelemetry GenAI format,
+        `Dict[str, Any] | None`:
+            Standardized part Dictionary in OpenTelemetry GenAI format,
             or None if the block type is invalid or cannot be converted.
     """
     block_type = block.get("type")
+    part: Dict[str, Any] | None = None
 
+    # Handle simple text-based blocks
     if block_type == "text":
         part = {
             "type": "text",
             "content": block.get("text", ""),
         }
-
     elif block_type == "thinking":
         part = {
             "type": "reasoning",
             "content": block.get("thinking", ""),
         }
-
+    # Handle tool blocks
     elif block_type == "tool_use":
         part = {
             "type": "tool_call",
@@ -61,10 +106,9 @@ def _convert_block_to_part(block: ContentBlock) -> Optional[dict[str, Any]]:
             "name": block.get("name", ""),
             "arguments": block.get("input", {}),
         }
-
     elif block_type == "tool_result":
         output = block.get("output", "")
-        if isinstance(output, (list, dict)):
+        if isinstance(output, (list, Dict)):
             result = _serialize_to_str(output)
         else:
             result = str(output)
@@ -74,77 +118,16 @@ def _convert_block_to_part(block: ContentBlock) -> Optional[dict[str, Any]]:
             "id": block.get("id", ""),
             "response": result,
         }
-
-    elif block_type == "image":
+    # Handle media blocks (image, audio, video)
+    elif block_type in ("image", "audio", "video"):
         source = block.get("source", {})
-        source_type = source.get("type")
+        # Type assertion for mypy
+        if isinstance(source, dict):
+            source_dict: Dict[str, Any] = source
 
-        if source_type == "url":
-            url = source.get("url", "")
-            part = {
-                "type": "uri",
-                "uri": url,
-                "modality": "image",
-            }
-        elif source_type == "base64":
-            data = source.get("data", "")
-            media_type = source.get("media_type", "image/jpeg")
-            part = {
-                "type": "blob",
-                "content": data,
-                "media_type": media_type,
-                "modality": "image",
-            }
-        else:
-            part = None
-
-    elif block_type == "audio":
-        source = block.get("source", {})
-        source_type = source.get("type")
-
-        if source_type == "url":
-            url = source.get("url", "")
-            part = {
-                "type": "uri",
-                "uri": url,
-                "modality": "audio",
-            }
-        elif source_type == "base64":
-            data = source.get("data", "")
-            media_type = source.get("media_type", "audio/wav")
-            part = {
-                "type": "blob",
-                "content": data,
-                "media_type": media_type,
-                "modality": "audio",
-            }
-        else:
-            part = None
-
-    elif block_type == "video":
-        source = block.get("source", {})
-        source_type = source.get("type")
-
-        if source_type == "url":
-            url = source.get("url", "")
-            part = {
-                "type": "uri",
-                "uri": url,
-                "modality": "video",
-            }
-        elif source_type == "base64":
-            data = source.get("data", "")
-            media_type = source.get("media_type", "video/mp4")
-            part = {
-                "type": "blob",
-                "content": data,
-                "media_type": media_type,
-                "modality": "video",
-            }
-        else:
-            part = None
-
-    else:
-        part = None
+            part = _convert_media_block(
+                source_dict,
+                modality=block_type,
+            )
 
     return part
