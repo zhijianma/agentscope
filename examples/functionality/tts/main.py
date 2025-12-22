@@ -18,6 +18,14 @@ from agentscope.tts import DashScopeRealtimeTTSModel
 
 async def main() -> None:
     """The main entry point for the ReAct agent example."""
+    import agentscope
+
+    agentscope.init(
+        project="TTSExample",
+        name="Test-Friday",
+        studio_url="http://localhost:3000",
+    )
+
     toolkit = Toolkit()
     toolkit.register_tool_function(execute_shell_command)
     toolkit.register_tool_function(execute_python_code)
